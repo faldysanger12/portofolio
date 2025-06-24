@@ -1,48 +1,51 @@
 {
-  "name": "faldy-portfolio",
-  "version": 2,
-  "public": true,
-  "github": {
-    "silent": true
-  },
-  "build": {
-    "env": {
-      "FLUTTER_WEB": "true"
-    }
-  },
-  "functions": {},
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
-    }
-  ],
-  "headers": [
-    {
-      "source": "/.*",
-      "headers": [
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        },
-        {
-          "key": "X-Frame-Options",
-          "value": "DENY"
-        },
-        {
-          "key": "X-XSS-Protection",
-          "value": "1; mode=block"
-        }
-      ]
+    "name": "faldy-portfolio",
+    "version": 2,
+    "public": true,
+    "github": {
+        "silent": false
     },
-    {
-      "source": "/(.*\\.(js|css|woff2?|ttf|eot))",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=31536000, immutable"
+    "buildCommand": "flutter build web --release --web-renderer canvaskit",
+    "outputDirectory": "build/web",
+    "installCommand": "if ! command -v flutter &> /dev/null; then git clone https://github.com/flutter/flutter.git -b stable && export PATH=\"$PATH:`pwd`/flutter/bin\"; fi && flutter config --enable-web && flutter pub get",
+    "build": {
+        "env": {
+            "FLUTTER_WEB": "true"
         }
-      ]
-    }
-  ]
+    },
+    "functions": {},
+    "routes": [
+        {
+            "src": "/(.*)",
+            "dest": "/index.html"
+        }
+    ],
+    "headers": [
+        {
+            "source": "/.*",
+            "headers": [
+                {
+                    "key": "X-Content-Type-Options",
+                    "value": "nosniff"
+                },
+                {
+                    "key": "X-Frame-Options",
+                    "value": "DENY"
+                },
+                {
+                    "key": "X-XSS-Protection",
+                    "value": "1; mode=block"
+                }
+            ]
+        },
+        {
+            "source": "/(.*\\.(js|css|woff2?|ttf|eot))",
+            "headers": [
+                {
+                    "key": "Cache-Control",
+                    "value": "public, max-age=31536000, immutable"
+                }
+            ]
+        }
+    ]
 }

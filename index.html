@@ -10,6 +10,12 @@
     <meta name="author" content="Faldy Sanger">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+    <!-- Preload critical resources -->
+    <link rel="preload" href="flutter.js" as="script">
+    <link rel="preload" href="main.dart.js" as="script">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
     <!-- Meta tags for mobile -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
@@ -28,6 +34,7 @@
             background: linear-gradient(135deg, #000000, #111111);
             font-family: 'Orbitron', monospace;
             color: #00FF00;
+            overflow: hidden; /* Prevent scrolling during load */
         }
 
         .loading {
@@ -36,32 +43,76 @@
             align-items: center;
             height: 100vh;
             flex-direction: column;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            z-index: 9999;
+            background: linear-gradient(135deg, #000000, #111111);
         }
 
         .loader {
             border: 4px solid rgba(0, 255, 0, 0.3);
             border-radius: 50%;
             border-top: 4px solid #00FF00;
-            width: 50px;
-            height: 50px;
+            width: 60px;
+            height: 60px;
             animation: spin 1s linear infinite;
             margin-bottom: 20px;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+        }
+
+        .loading-text {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .loading-progress {
+            width: 200px;
+            height: 4px;
+            background: rgba(0, 255, 0, 0.2);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 20px;
+        }
+
+        .loading-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #00FF00, #00AA00);
+            width: 0%;
+            border-radius: 2px;
+            animation: loadingBar 3s ease-in-out infinite;
         }
 
         @keyframes spin {
-            0% {
-                transform: rotate(0deg);
-            }
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
 
-            100% {
-                transform: rotate(360deg);
-            }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        @keyframes loadingBar {
+            0% { width: 0%; }
+            50% { width: 70%; }
+            100% { width: 100%; }
+        }
+
+        /* Hide loading after Flutter loads */
+        .flutter-loaded .loading {
+            opacity: 0;
+            transition: opacity 0.5s ease-out;
+            pointer-events: none;
         }
     </style>
 
     <script>
         // The value below is injected by flutter build, do not touch.
-        const serviceWorkerVersion = "1259594604";
+        const serviceWorkerVersion = "4048588315";
     </script>
     <script src="flutter_bootstrap.js" async></script>
 </head>
@@ -69,16 +120,55 @@
 <body>
     <div id="loading" class="loading">
         <div class="loader"></div>
-        <p>Loading Faldy's Portfolio...</p>
+        <div class="loading-text">Loading Faldy's Portfolio...</div>
+        <div class="loading-progress">
+            <div class="loading-bar"></div>
+        </div>
     </div>
 
     <script>
-        window.addEventListener('flutter-first-frame', function () {
-            var loading = document.getElementById('loading');
-            if (loading) {
-                loading.remove();
+        // Enhanced loading experience
+        let loadingProgress = 0;
+        const loadingBar = document.querySelector('.loading-bar');
+        const loadingText = document.querySelector('.loading-text');
+        
+        // Simulate loading progress
+        const progressInterval = setInterval(() => {
+            loadingProgress += Math.random() * 15;
+            if (loadingProgress > 90) loadingProgress = 90;
+            
+            if (loadingBar) {
+                loadingBar.style.width = loadingProgress + '%';
             }
+        }, 200);
+
+        // Hide loading when Flutter is ready
+        window.addEventListener('flutter-first-frame', function () {
+            clearInterval(progressInterval);
+            
+            if (loadingBar) loadingBar.style.width = '100%';
+            if (loadingText) loadingText.textContent = 'Ready!';
+            
+            setTimeout(() => {
+                document.body.classList.add('flutter-loaded');
+                document.body.style.overflow = 'auto';
+                
+                setTimeout(() => {
+                    const loading = document.getElementById('loading');
+                    if (loading) loading.remove();
+                }, 500);
+            }, 300);
         });
+
+        // Fallback: Remove loading screen after 10 seconds
+        setTimeout(() => {
+            const loading = document.getElementById('loading');
+            if (loading) {
+                document.body.classList.add('flutter-loaded');
+                document.body.style.overflow = 'auto';
+                setTimeout(() => loading.remove(), 500);
+            }
+        }, 10000);
     </script>
 </body>
 

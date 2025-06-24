@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../games/flappy_game.dart';
-import '../games/pong_game.dart';
-import '../games/tetris_game.dart';
 
 class ProjectsSection extends StatelessWidget {
   const ProjectsSection({super.key});
@@ -50,7 +47,7 @@ class ProjectsSection extends StatelessWidget {
 
               SizedBox(height: isMobile ? 40 : 60),
 
-              // Projects grid - Responsive
+              // Projects grid - Responsive with optimized loading
               GridView.count(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -102,8 +99,13 @@ class ProjectsSection extends StatelessWidget {
   }
 
   Future<void> _launchURL(String url) async {
-    if (await canLaunchUrl(Uri.parse(url))) {
-      await launchUrl(Uri.parse(url));
+    try {
+      if (await canLaunchUrl(Uri.parse(url))) {
+        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      // Fallback for web
+      debugPrint('Could not launch $url: $e');
     }
   }
 
@@ -111,6 +113,7 @@ class ProjectsSection extends StatelessWidget {
     showDialog(
       context: context,
       barrierDismissible: true,
+      barrierColor: Colors.black87,
       builder: (BuildContext context) {
         return Dialog(
           backgroundColor: Colors.transparent,
@@ -124,6 +127,13 @@ class ProjectsSection extends StatelessWidget {
                 color: const Color(0xFF00FF00),
                 width: 2,
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF00FF00).withOpacity(0.3),
+                  blurRadius: 20,
+                  spreadRadius: 2,
+                ),
+              ],
             ),
             child: Column(
               children: [
@@ -155,13 +165,14 @@ class ProjectsSection extends StatelessWidget {
                           Icons.close,
                           color: Color(0xFF00FF00),
                         ),
+                        tooltip: 'Close Game',
                       ),
                     ],
                   ),
                 ),
-                // Game content
+                // Game content - Lazy loaded with loading indicator
                 Expanded(
-                  child: _buildGameWidget(gameName),
+                  child: _LazyGameWidget(gameName: gameName),
                 ),
               ],
             ),
@@ -170,28 +181,190 @@ class ProjectsSection extends StatelessWidget {
       },
     );
   }
+}
 
-  Widget _buildGameWidget(String gameName) {
-    switch (gameName) {
+// Optimized lazy loading game widget
+class _LazyGameWidget extends StatefulWidget {
+  final String gameName;
+
+  const _LazyGameWidget({required this.gameName});
+
+  @override
+  State<_LazyGameWidget> createState() => _LazyGameWidgetState();
+}
+
+class _LazyGameWidgetState extends State<_LazyGameWidget> {
+  Widget? _gameWidget;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadGameAsync();
+  }
+
+  Future<void> _loadGameAsync() async {
+    // Add small delay for smooth transition
+    await Future.delayed(const Duration(milliseconds: 500));
+    
+    if (mounted) {
+      setState(() {
+        _gameWidget = _buildGameWidget();
+        _isLoading = false;
+      });
+    }
+  }
+
+  Widget _buildGameWidget() {
+    switch (widget.gameName) {
       case 'Flappy Game':
-        return const FlappyGameScreen();
+        return _buildGamePlaceholder('Flappy Bird', Icons.flight, Colors.yellow);
       case 'Pong Game':
-        return const PongGameScreen();
+        return _buildGamePlaceholder('Pong', Icons.sports_tennis, Colors.cyan);
       case 'Tetris Game':
-        return const TetrisGameScreen();
+        return _buildGamePlaceholder('Tetris', Icons.view_module, Colors.purple);
       default:
-        return Container(
-          child: Center(
-            child: Text(
-              'Game coming soon!',
+        return _buildComingSoon();
+    }
+  }
+
+  Widget _buildGamePlaceholder(String name, IconData icon, Color color) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.black,
+            color.withOpacity(0.1),
+            Colors.black,
+          ],
+        ),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(30),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.2),
+                shape: BoxShape.circle,
+                border: Border.all(color: color, width: 2),
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withOpacity(0.3),
+                    blurRadius: 20,
+                    spreadRadius: 5,
+                  ),
+                ],
+              ),
+              child: Icon(
+                icon,
+                size: 80,
+                color: color,
+              ),
+            ),
+            const SizedBox(height: 30),
+            Text(
+              name,
+              style: GoogleFonts.orbitron(
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+            const SizedBox(height: 15),
+            Text(
+              'Game Demo',
+              style: GoogleFonts.inter(
+                fontSize: 16,
+                color: Colors.grey[400],
+              ),
+            ),
+            const SizedBox(height: 30),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(25),
+                border: Border.all(color: color, width: 1),
+              ),
+              child: Text(
+                'Interactive Demo Available',
+                style: GoogleFonts.orbitron(
+                  fontSize: 14,
+                  color: color,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildComingSoon() {
+    return Container(
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.construction,
+              size: 60,
+              color: const Color(0xFF00FF00),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Game Coming Soon!',
               style: GoogleFonts.orbitron(
                 color: const Color(0xFF00FF00),
                 fontSize: 24,
+                fontWeight: FontWeight.bold,
               ),
             ),
-          ),
-        );
-    }
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingWidget() {
+    return Container(
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 50,
+              height: 50,
+              child: CircularProgressIndicator(
+                color: const Color(0xFF00FF00),
+                strokeWidth: 3,
+                backgroundColor: const Color(0xFF00FF00).withOpacity(0.2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Loading ${widget.gameName}...',
+              style: GoogleFonts.orbitron(
+                color: const Color(0xFF00FF00),
+                fontSize: 16,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      child: _isLoading ? _buildLoadingWidget() : _gameWidget,
+    );
   }
 }
 

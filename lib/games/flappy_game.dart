@@ -1,414 +1,960 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flame/game.dart';
-import 'package:flame/components.dart';
-import 'package:flame/events.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'dart:math';
+import 'dart:async';
 
-class FlappyGameScreen extends StatelessWidget {
-  const FlappyGameScreen({super.key});
+class FlappyGame extends StatefulWidget {
+  const FlappyGame({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0F0F23),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1A1A3A),
-        title: Text(
-          'Flappy Bird',
-          style: GoogleFonts.inter(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.help_outline, color: Colors.white),
-            onPressed: () => _showControls(context),
-          ),
-        ],
-      ),
-      body: _FlappyGameWrapper(),
-    );
-  }
-
-  void _showControls(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A3A),
-        title: Text(
-          'Game Controls',
-          style: GoogleFonts.inter(
-              color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('👆 Tap anywhere to flap',
-                style: GoogleFonts.inter(color: Colors.white)),
-            const SizedBox(height: 8),
-            Text('⌨️ Spacebar, Up arrow, or W to flap',
-                style: GoogleFonts.inter(color: Colors.white)),
-            const SizedBox(height: 8),
-            Text('🚁 Navigate through pipes without crashing',
-                style: GoogleFonts.inter(color: Colors.white)),
-            const SizedBox(height: 8),
-            Text('🎯 Score points by passing through pipes',
-                style: GoogleFonts.inter(color: Colors.white)),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('OK',
-                style: GoogleFonts.inter(color: const Color(0xFF6366F1))),
-          ),
-        ],
-      ),
-    );
-  }
+  State<FlappyGame> createState() => _FlappyGameState();
 }
 
-class _FlappyGameWrapper extends StatefulWidget {
-  @override
-  State<_FlappyGameWrapper> createState() => _FlappyGameWrapperState();
-}
+class _FlappyGameState extends State<FlappyGame> with TickerProviderStateMixin {
+  static const double gravity = 0.4;
+  static const double jumpPower = -8;
+  static const double pipeWidth = 80;
+  static const double pipeGap = 160;
+  static const double groundHeight = 100;
 
-class _FlappyGameWrapperState extends State<_FlappyGameWrapper> {
-  late FlappyGame game;
+  late AnimationController _controller;
+  late AnimationController _backgroundController;
+  late Animation<double> _backgroundAnimation;
+  Timer? gameTimer;
+
+  double birdY = 0;
+  double birdVelocity = 0;
+  bool isGameRunning = false;
+  bool isGameStarted = false;
+  int score = 0;
+  int bestScore = 0;
+
+  List<Map<String, double>> pipes = [];
+  double pipeX = 400;
 
   @override
   void initState() {
     super.initState();
-    game = FlappyGame();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+
+    _backgroundController = AnimationController(
+      duration: const Duration(seconds: 10),
+      vsync: this,
+    )..repeat();
+
+    _backgroundAnimation = Tween<double>(
+      begin: 0,
+      end: 1,
+    ).animate(_backgroundController);
+
+    _resetGame();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _backgroundController.dispose();
+    gameTimer?.cancel();
+    super.dispose();
+  }
+
+  void _resetGame() {
+    setState(() {
+      birdY = 0;
+      birdVelocity = 0;
+      isGameRunning = false;
+      isGameStarted = false;
+      score = 0;
+      pipes.clear();
+      pipeX = 400;
+    });
+    _generatePipes();
+  }
+
+  void _generatePipes() {
+    pipes.clear();
+    for (int i = 0; i < 3; i++) {
+      double centerY = Random().nextDouble() * 200 - 100;
+      pipes.add({
+        'x': 400.0 + (i * 300),
+        'centerY': centerY,
+        'scored': 0.0, // 0 = not scored, 1 = scored
+      });
+    }
+  }
+
+  void _startGame() {
+    if (!isGameRunning) {
+      setState(() {
+        isGameRunning = true;
+        isGameStarted = true;
+      });
+
+      gameTimer = Timer.periodic(const Duration(milliseconds: 12), (timer) {
+        _updateGame();
+      });
+    }
+  }
+
+  void _jump() {
+    if (!isGameStarted) {
+      _startGame();
+    }
+
+    if (isGameRunning) {
+      setState(() {
+        birdVelocity = jumpPower;
+      });
+
+      // Wing flap animation
+      _controller.forward().then((_) {
+        _controller.reverse();
+      });
+    }
+  }
+
+  void _updateGame() {
+    setState(() {
+      // Update bird physics
+      birdVelocity += gravity;
+      birdY += birdVelocity;
+
+      // Move pipes
+      for (var pipe in pipes) {
+        pipe['x'] = pipe['x']! - 3;
+      }
+
+      // Remove pipes that are off screen and add new ones
+      pipes.removeWhere((pipe) => pipe['x']! < -pipeWidth);
+
+      if (pipes.isNotEmpty && pipes.last['x']! < 100) {
+        double centerY = Random().nextDouble() * 200 - 100;
+        pipes.add({
+          'x': pipes.last['x']! + 300,
+          'centerY': centerY,
+          'scored': 0.0,
+        });
+      }
+
+      // Check scoring
+      for (var pipe in pipes) {
+        if (pipe['scored'] == 0 && pipe['x']! < -40) {
+          pipe['scored'] = 1;
+          score++;
+        }
+      }
+
+      // Check collisions
+      _checkCollisions();
+    });
+  }
+
+  void _checkCollisions() {
+    // Ground and ceiling collision
+    if (birdY > 150 || birdY < -200) {
+      _gameOver();
+      return;
+    }
+
+    // Pipe collision
+    for (var pipe in pipes) {
+      double pipeLeft = pipe['x']!;
+      double pipeRight = pipe['x']! + pipeWidth;
+      double pipeCenterY = pipe['centerY']!;
+      double pipeTop = pipeCenterY - pipeGap / 2;
+      double pipeBottom = pipeCenterY + pipeGap / 2;
+
+      // Check if bird is in pipe's X range
+      if (pipeLeft < 40 && pipeRight > -40) {
+        // Check if bird is not in the gap
+        if (birdY < pipeTop || birdY > pipeBottom) {
+          _gameOver();
+          return;
+        }
+      }
+    }
+  }
+
+  void _gameOver() {
+    gameTimer?.cancel();
+    setState(() {
+      isGameRunning = false;
+      if (score > bestScore) {
+        bestScore = score;
+      }
+    });
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.black,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Colors.orange, width: 2),
+        ),
+        title: const Text(
+          '💥 GAME OVER',
+          style: TextStyle(
+            color: Colors.orange,
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.flight, size: 50, color: Colors.orange),
+            const SizedBox(height: 10),
+            Text(
+              'Score: $score',
+              style: const TextStyle(color: Colors.white, fontSize: 18),
+            ),
+            Text(
+              'Best: $bestScore',
+              style: const TextStyle(color: Colors.grey, fontSize: 16),
+            ),
+          ],
+        ),
+        actions: [
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _resetGame();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.black,
+                  ),
+                  child: const Text('RETRY'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    Navigator.pop(context);
+                  },
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.orange),
+                    foregroundColor: Colors.orange,
+                  ),
+                  child: const Text('EXIT'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        game.handleTap();
+    return Scaffold(
+      backgroundColor: const Color(0xFF0A0A0B),
+      appBar: AppBar(
+        title: const Text('Flappy Bird',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        backgroundColor: const Color(0xFF1A1A1D),
+        foregroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: true,
+      ),
+      body: GestureDetector(
+        onTap: _jump,
+        child: KeyboardListener(
+          focusNode: FocusNode()..requestFocus(),
+          onKeyEvent: (event) {
+            if (event is KeyDownEvent &&
+                (event.logicalKey == LogicalKeyboardKey.space ||
+                    event.logicalKey == LogicalKeyboardKey.arrowUp)) {
+              _jump();
+            }
+          },
+          child: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0xFF0A0A0B),
+                  Color(0xFF1A1A1D),
+                  Color(0xFF0F2027),
+                  Color(0xFF203A43),
+                ],
+              ),
+            ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return Container(
+                  margin: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(15),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.blue.withOpacity(0.3),
+                        blurRadius: 20,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                    border: Border.all(
+                      color: Colors.blue.withOpacity(0.5),
+                      width: 2,
+                    ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(13),
+                    child: Stack(
+                      children: [
+                        // Background
+                        _buildBackground(),
+
+                        // Pipes
+                        ..._buildPipes(),
+
+                        // Ground
+                        _buildGround(),
+
+                        // Bird
+                        _buildBird(),
+
+                        // UI
+                        _buildUI(),
+
+                        // Instructions
+                        if (!isGameStarted) _buildInstructions(),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBackground() {
+    return AnimatedBuilder(
+      animation: _backgroundAnimation,
+      builder: (context, child) {
+        return Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0xFF203A43), // Dark blue-green
+                Color(0xFF2C5F77), // Medium blue
+                Color(0xFF0F2027), // Very dark
+              ],
+            ),
+          ),
+          child: CustomPaint(
+            size: Size.infinite,
+            painter: CloudPainter(animation: _backgroundAnimation.value),
+          ),
+        );
       },
-      child: Focus(
-        autofocus: true,
-        child: GameWidget<FlappyGame>.controlled(
-          gameFactory: () => game,
+    );
+  }
+
+  List<Widget> _buildPipes() {
+    return pipes.map((pipe) {
+      return Positioned(
+        left: pipe['x'],
+        child: Column(
+          children: [
+            // Top pipe
+            Container(
+              width: pipeWidth,
+              height: 200 + pipe['centerY']! - pipeGap / 2,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.teal[400]!,
+                    Colors.teal[600]!,
+                    Colors.teal[800]!,
+                  ],
+                  stops: const [0.0, 0.7, 1.0],
+                ),
+                border: Border.all(color: Colors.teal[900]!, width: 3),
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(12),
+                  bottomRight: Radius.circular(12),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.5),
+                    blurRadius: 15,
+                    offset: const Offset(4, 4),
+                  ),
+                  BoxShadow(
+                    color: Colors.teal.withOpacity(0.3),
+                    blurRadius: 20,
+                    offset: const Offset(-2, -2),
+                  ),
+                ],
+              ),
+              child: Stack(
+                children: [
+                  // Pipe cap
+                  Positioned(
+                    bottom: 0,
+                    left: -5,
+                    right: -5,
+                    child: Container(
+                      height: 25,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Colors.teal[300]!, Colors.teal[600]!],
+                        ),
+                        borderRadius: BorderRadius.circular(15),
+                        border: Border.all(color: Colors.teal[900]!, width: 2),
+                      ),
+                    ),
+                  ),
+                  // Highlight
+                  Positioned(
+                    left: 8,
+                    top: 10,
+                    child: Container(
+                      width: 8,
+                      height: (200 + pipe['centerY']! - pipeGap / 2) - 40,
+                      decoration: BoxDecoration(
+                        color: Colors.teal[200]!.withOpacity(0.6),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Gap
+            SizedBox(height: pipeGap),
+
+            // Bottom pipe
+            Container(
+              width: pipeWidth,
+              height: 200 - pipe['centerY']! - pipeGap / 2,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.teal[400]!,
+                    Colors.teal[600]!,
+                    Colors.teal[800]!,
+                  ],
+                  stops: const [0.0, 0.3, 1.0],
+                ),
+                border: Border.all(color: Colors.teal[900]!, width: 3),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(12),
+                  topRight: Radius.circular(12),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.5),
+                    blurRadius: 15,
+                    offset: const Offset(4, 4),
+                  ),
+                  BoxShadow(
+                    color: Colors.teal.withOpacity(0.3),
+                    blurRadius: 20,
+                    offset: const Offset(-2, -2),
+                  ),
+                ],
+              ),
+              child: Stack(
+                children: [
+                  // Pipe cap
+                  Positioned(
+                    top: 0,
+                    left: -5,
+                    right: -5,
+                    child: Container(
+                      height: 25,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Colors.teal[300]!, Colors.teal[600]!],
+                        ),
+                        borderRadius: BorderRadius.circular(15),
+                        border: Border.all(color: Colors.teal[900]!, width: 2),
+                      ),
+                    ),
+                  ),
+                  // Highlight
+                  Positioned(
+                    left: 8,
+                    top: 30,
+                    child: Container(
+                      width: 8,
+                      height: (200 - pipe['centerY']! - pipeGap / 2) - 40,
+                      decoration: BoxDecoration(
+                        color: Colors.teal[200]!.withOpacity(0.6),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
-      ),
-    );
-  }
-}
-
-class FlappyGame extends FlameGame
-    with HasCollisionDetection, HasKeyboardHandlerComponents {
-  late Bird bird;
-  late List<Pipe> pipes;
-  late TextComponent scoreText;
-  late TextComponent gameOverText;
-  late TextComponent instructionText;
-
-  int score = 0;
-  bool gameOver = false;
-  bool gameStarted = false;
-  double pipeSpawnTimer = 0;
-  final double pipeSpawnInterval = 2.0;
-  final Random random = Random();
-
-  @override
-  Future<void> onLoad() async {
-    await super.onLoad();
-
-    bird = Bird(position: Vector2(100, size.y / 2));
-    pipes = [];
-
-    add(bird);
-
-    // Score text
-    scoreText = TextComponent(
-      text: '0',
-      position: Vector2(size.x / 2, 80),
-      anchor: Anchor.center,
-      textRenderer: TextPaint(
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 48,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-    add(scoreText);
-
-    // Instruction text
-    instructionText = TextComponent(
-      text: 'Tap to fly!',
-      position: Vector2(size.x / 2, size.y / 2 + 100),
-      anchor: Anchor.center,
-      textRenderer: TextPaint(
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 24,
-        ),
-      ),
-    );
-    add(instructionText);
-
-    // Game over text
-    gameOverText = TextComponent(
-      text: 'Game Over!\nTap to restart',
-      position: Vector2(size.x / 2, size.y / 2),
-      anchor: Anchor.center,
-      textRenderer: TextPaint(
-        style: TextStyle(
-          color: Colors.red,
-          fontSize: 32,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
-
-  @override
-  void update(double dt) {
-    super.update(dt);
-
-    if (!gameStarted || gameOver) return;
-
-    // Spawn pipes
-    pipeSpawnTimer += dt;
-    if (pipeSpawnTimer >= pipeSpawnInterval) {
-      spawnPipe();
-      pipeSpawnTimer = 0;
-    }
-
-    // Check collisions
-    checkCollisions();
-
-    // Remove off-screen pipes
-    pipes.removeWhere((pipe) {
-      if (pipe.position.x < -100) {
-        remove(pipe);
-        return true;
-      }
-      return false;
-    });
-
-    // Check if bird passed through pipes for scoring
-    for (final pipe in pipes) {
-      if (!pipe.scored && pipe.position.x + pipe.size.x < bird.position.x) {
-        if (pipe.isTop) {
-          score++;
-          scoreText.text = score.toString();
-        }
-        pipe.scored = true;
-      }
-    }
-  }
-
-  void spawnPipe() {
-    final gapHeight = 150.0;
-    final gapPosition = random.nextDouble() * (size.y - gapHeight - 200) + 100;
-
-    // Top pipe
-    final topPipe = Pipe(
-      position: Vector2(size.x, 0),
-      size: Vector2(80, gapPosition),
-      isTop: true,
-    );
-
-    // Bottom pipe
-    final bottomPipe = Pipe(
-      position: Vector2(size.x, gapPosition + gapHeight),
-      size: Vector2(80, size.y - gapPosition - gapHeight),
-      isTop: false,
-    );
-
-    pipes.add(topPipe);
-    pipes.add(bottomPipe);
-    add(topPipe);
-    add(bottomPipe);
-  }
-
-  void checkCollisions() {
-    // Check ground and ceiling collision
-    if (bird.position.y <= 0 || bird.position.y >= size.y) {
-      endGame();
-      return;
-    }
-
-    // Check pipe collisions
-    for (final pipe in pipes) {
-      if (bird.position.x + 20 > pipe.position.x &&
-          bird.position.x - 20 < pipe.position.x + pipe.size.x &&
-          bird.position.y + 20 > pipe.position.y &&
-          bird.position.y - 20 < pipe.position.y + pipe.size.y) {
-        endGame();
-        return;
-      }
-    }
-  }
-
-  void endGame() {
-    gameOver = true;
-    add(gameOverText);
-  }
-
-  void restartGame() {
-    gameOver = false;
-    gameStarted = false;
-    score = 0;
-    scoreText.text = '0';
-
-    // Remove all pipes
-    for (final pipe in pipes) {
-      remove(pipe);
-    }
-    pipes.clear();
-
-    // Reset bird
-    bird.reset(Vector2(100, size.y / 2));
-
-    remove(gameOverText);
-    add(instructionText);
-
-    pipeSpawnTimer = 0;
-  }
-
-  void handleTap() {
-    if (gameOver) {
-      restartGame();
-    } else if (!gameStarted) {
-      gameStarted = true;
-      remove(instructionText);
-      bird.flap();
-    } else {
-      bird.flap();
-    }
-  }
-
-  @override
-  KeyEventResult onKeyEvent(
-      KeyEvent event, Set<LogicalKeyboardKey> keysPressed) {
-    super.onKeyEvent(event, keysPressed);
-
-    if (keysPressed.contains(LogicalKeyboardKey.space) ||
-        keysPressed.contains(LogicalKeyboardKey.arrowUp) ||
-        keysPressed.contains(LogicalKeyboardKey.keyW)) {
-      handleTap();
-      return KeyEventResult.handled;
-    }
-    return KeyEventResult.ignored;
-  }
-}
-
-class Bird extends CircleComponent {
-  double velocity = 0;
-  final double gravity = 980;
-  final double jumpStrength = 350;
-
-  Bird({required Vector2 position})
-      : super(
-          position: position,
-          radius: 20,
-          anchor: Anchor.center,
-        );
-
-  @override
-  void update(double dt) {
-    super.update(dt);
-
-    velocity += gravity * dt;
-    position.y += velocity * dt;
-  }
-
-  @override
-  void render(Canvas canvas) {
-    final paint = Paint()..color = const Color(0xFFF59E0B);
-    canvas.drawCircle(Offset(radius, radius), radius, paint);
-
-    // Draw wing
-    final wingPaint = Paint()..color = const Color(0xFFD97706);
-    canvas.drawOval(
-      Rect.fromLTWH(radius - 10, radius - 5, 15, 10),
-      wingPaint,
-    );
-
-    // Draw eye
-    final eyePaint = Paint()..color = Colors.white;
-    canvas.drawCircle(Offset(radius + 5, radius - 5), 5, eyePaint);
-
-    final pupilPaint = Paint()..color = Colors.black;
-    canvas.drawCircle(Offset(radius + 7, radius - 3), 2, pupilPaint);
-  }
-
-  void flap() {
-    velocity = -jumpStrength;
-  }
-
-  void reset(Vector2 newPosition) {
-    position = newPosition;
-    velocity = 0;
-  }
-}
-
-class Pipe extends RectangleComponent {
-  final bool isTop;
-  bool scored = false;
-  final double speed = 200;
-
-  Pipe({
-    required Vector2 position,
-    required Vector2 size,
-    required this.isTop,
-  }) : super(
-          position: position,
-          size: size,
-          anchor: Anchor.topLeft,
-        );
-
-  @override
-  void update(double dt) {
-    super.update(dt);
-    position.x -= speed * dt;
-  }
-
-  @override
-  void render(Canvas canvas) {
-    final paint = Paint()..color = const Color(0xFF10B981);
-
-    // Draw pipe body
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(0, 0, size.x, size.y),
-        const Radius.circular(5),
-      ),
-      paint,
-    );
-
-    // Draw pipe cap
-    final capPaint = Paint()..color = const Color(0xFF059669);
-    if (isTop) {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(-10, size.y - 30, size.x + 20, 30),
-          const Radius.circular(5),
-        ),
-        capPaint,
       );
-    } else {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(-10, 0, size.x + 20, 30),
-          const Radius.circular(5),
+    }).toList();
+  }
+
+  Widget _buildGround() {
+    return Positioned(
+      bottom: 0,
+      left: 0,
+      right: 0,
+      child: Container(
+        height: groundHeight,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Colors.brown[800]!,
+              Colors.brown[600]!,
+              Colors.brown[400]!,
+            ],
+          ),
+          border: Border(
+            top: BorderSide(color: Colors.brown[900]!, width: 3),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.6),
+              blurRadius: 10,
+              offset: const Offset(0, -5),
+            ),
+          ],
         ),
-        capPaint,
-      );
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.brown[500]!.withOpacity(0.8),
+            border: Border(
+              top: BorderSide(color: Colors.brown[700]!, width: 2),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBird() {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Positioned(
+          left: 50,
+          top: MediaQuery.of(context).size.height / 2 + birdY - 50,
+          child: Transform.rotate(
+            angle: (birdVelocity / 8).clamp(-0.6, 0.6),
+            child: Container(
+              width: 45,
+              height: 35,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.orange[300]!,
+                    Colors.orange[500]!,
+                    Colors.orange[700]!,
+                  ],
+                ),
+                border: Border.all(color: Colors.orange[800]!, width: 2),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.5),
+                    blurRadius: 12,
+                    offset: const Offset(4, 4),
+                  ),
+                  BoxShadow(
+                    color: Colors.orange.withOpacity(0.4),
+                    blurRadius: 20,
+                    offset: const Offset(-2, -2),
+                  ),
+                ],
+              ),
+              child: Stack(
+                children: [
+                  // Body highlight
+                  Positioned(
+                    left: 8,
+                    top: 6,
+                    child: Container(
+                      width: 15,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: Colors.orange[100]!.withOpacity(0.8),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                  // Eye white
+                  Positioned(
+                    right: 8,
+                    top: 6,
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black26,
+                            blurRadius: 2,
+                            offset: Offset(1, 1),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // Eye pupil
+                  Positioned(
+                    right: 10,
+                    top: 8,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: Colors.black,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+                  // Beak
+                  Positioned(
+                    right: -4,
+                    top: 14,
+                    child: Container(
+                      width: 12,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.deepOrange[400]!,
+                            Colors.deepOrange[700]!
+                          ],
+                        ),
+                        borderRadius: const BorderRadius.only(
+                          topRight: Radius.circular(6),
+                          bottomRight: Radius.circular(6),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.4),
+                            blurRadius: 3,
+                            offset: const Offset(1, 1),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // Wing with smooth animation
+                  Positioned(
+                    left: 6,
+                    top: 10,
+                    child: Transform.rotate(
+                      angle: (_controller.value - 0.5) * 1.2,
+                      child: Container(
+                        width: 18,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Colors.orange[500]!, Colors.orange[700]!],
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.2),
+                              blurRadius: 3,
+                              offset: const Offset(1, 1),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildUI() {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Score
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.black.withOpacity(0.8),
+                        Colors.grey[900]!.withOpacity(0.8),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: Colors.orange.withOpacity(0.7), width: 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.orange.withOpacity(0.3),
+                        blurRadius: 10,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    'Score: $score',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+
+                // Best score
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.black.withOpacity(0.8),
+                        Colors.grey[900]!.withOpacity(0.8),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: Colors.yellow.withOpacity(0.7), width: 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.yellow.withOpacity(0.3),
+                        blurRadius: 10,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    'Best: $bestScore',
+                    style: const TextStyle(
+                      color: Colors.yellow,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const Spacer(),
+
+            // Control buttons
+            if (MediaQuery.of(context).size.width < 600)
+              Container(
+                margin: const EdgeInsets.only(bottom: 120),
+                child: ElevatedButton(
+                  onPressed: _jump,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 40,
+                      vertical: 15,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(25),
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.flight_takeoff),
+                      SizedBox(width: 8),
+                      Text(
+                        'FLY',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInstructions() {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.all(30),
+        margin: const EdgeInsets.symmetric(horizontal: 40),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.8),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.orange, width: 3),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.orange.withOpacity(0.3),
+              blurRadius: 20,
+              spreadRadius: 5,
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.flight,
+              size: 60,
+              color: Colors.orange,
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'FLAPPY BIRD',
+              style: TextStyle(
+                color: Colors.orange,
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Tap to fly and avoid the pipes!',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              '🖱️ Click or 🎮 Press SPACE/↑',
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: 14,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _jump,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 30,
+                  vertical: 12,
+                ),
+              ),
+              child: const Text(
+                'START GAME',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class CloudPainter extends CustomPainter {
+  final double animation;
+
+  CloudPainter({this.animation = 0});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cloudPaint = Paint()
+      ..color = Colors.grey.withOpacity(0.3)
+      ..style = PaintingStyle.fill;
+
+    final shadowPaint = Paint()
+      ..color = Colors.black.withOpacity(0.2)
+      ..style = PaintingStyle.fill;
+
+    // Draw animated clouds with parallax effect
+    for (int i = 0; i < 6; i++) {
+      double baseX = (i * size.width / 3) % size.width;
+      double animatedX =
+          (baseX - (animation * size.width * 0.3)) % (size.width + 100);
+      double y = 30 + (i * 35) % 100;
+      double scale = 0.5 + (i % 3) * 0.2;
+
+      // Shadow
+      _drawCloud(canvas, shadowPaint, animatedX + 2, y + 2, scale);
+
+      // Cloud
+      _drawCloud(canvas, cloudPaint, animatedX, y, scale);
+    }
+
+    // Draw distant mountains
+    final mountainPaint = Paint()
+      ..color = Colors.teal.withOpacity(0.2)
+      ..style = PaintingStyle.fill;
+
+    for (int i = 0; i < 4; i++) {
+      double x = (i * size.width / 2 - animation * size.width * 0.05) %
+          (size.width + 200);
+      double height = 60 + (i * 15) % 40;
+
+      Path mountainPath = Path();
+      mountainPath.moveTo(x - 50, size.height);
+      mountainPath.lineTo(x, size.height - height);
+      mountainPath.lineTo(x + 50, size.height);
+      mountainPath.close();
+
+      canvas.drawPath(mountainPath, mountainPaint);
     }
   }
+
+  void _drawCloud(
+      Canvas canvas, Paint paint, double x, double y, double scale) {
+    canvas.drawCircle(Offset(x, y), 15 * scale, paint);
+    canvas.drawCircle(Offset(x + 20 * scale, y), 20 * scale, paint);
+    canvas.drawCircle(Offset(x + 40 * scale, y), 15 * scale, paint);
+    canvas.drawCircle(
+        Offset(x + 20 * scale, y - 10 * scale), 12 * scale, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }

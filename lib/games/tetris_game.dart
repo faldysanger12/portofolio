@@ -1,81 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'dart:async';
 import 'dart:math';
-
-class TetrisGameScreen extends StatelessWidget {
-  const TetrisGameScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0F0F23),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1A1A3A),
-        title: Text(
-          'Tetris Game',
-          style: GoogleFonts.inter(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.help_outline, color: Colors.white),
-            onPressed: () => _showControls(context),
-          ),
-        ],
-      ),
-      body: const TetrisGame(),
-    );
-  }
-
-  void _showControls(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A3A),
-        title: Text(
-          'Game Controls',
-          style: GoogleFonts.inter(
-              color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('⬅️ ➡️ Arrow keys to move left/right',
-                style: GoogleFonts.inter(color: Colors.white)),
-            const SizedBox(height: 8),
-            Text('⬇️ Down arrow to move faster',
-                style: GoogleFonts.inter(color: Colors.white)),
-            const SizedBox(height: 8),
-            Text('⬆️ Up arrow or Space to rotate',
-                style: GoogleFonts.inter(color: Colors.white)),
-            const SizedBox(height: 8),
-            Text('🎯 Complete lines to score points',
-                style: GoogleFonts.inter(color: Colors.white)),
-            const SizedBox(height: 8),
-            Text('💥 Game ends when blocks reach top',
-                style: GoogleFonts.inter(color: Colors.white)),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('OK',
-                style: GoogleFonts.inter(color: const Color(0xFF6366F1))),
-          ),
-        ],
-      ),
-    );
-  }
-}
+import 'dart:async';
 
 class TetrisGame extends StatefulWidget {
   const TetrisGame({super.key});
@@ -87,142 +13,189 @@ class TetrisGame extends StatefulWidget {
 class _TetrisGameState extends State<TetrisGame> {
   static const int boardWidth = 10;
   static const int boardHeight = 20;
-  static const double blockSize = 25.0;
 
-  List<List<Color?>> board = [];
-  TetrisPiece? currentPiece;
-  TetrisPiece? nextPiece;
+  List<List<int>> board =
+      List.generate(boardHeight, (index) => List.filled(boardWidth, 0));
 
+  late Timer gameTimer;
+  bool isGameRunning = false;
   int score = 0;
   int level = 1;
   int linesCleared = 0;
-  bool gameOver = false;
-  bool gamePaused = false;
 
-  Timer? gameTimer;
-  final Random random = Random();
-  final FocusNode _focusNode = FocusNode();
+  // Current piece
+  List<List<int>> currentPiece = [];
+  int currentX = 4;
+  int currentY = 0;
+  int currentRotation = 0;
+
+  // Tetris pieces (tetrominos)
+  final List<List<List<List<int>>>> pieces = [
+    // I piece
+    [
+      [
+        [1, 1, 1, 1]
+      ],
+      [
+        [1],
+        [1],
+        [1],
+        [1]
+      ],
+    ],
+    // O piece
+    [
+      [
+        [1, 1],
+        [1, 1]
+      ],
+    ],
+    // T piece
+    [
+      [
+        [0, 1, 0],
+        [1, 1, 1]
+      ],
+      [
+        [1, 0],
+        [1, 1],
+        [1, 0]
+      ],
+      [
+        [1, 1, 1],
+        [0, 1, 0]
+      ],
+      [
+        [0, 1],
+        [1, 1],
+        [0, 1]
+      ],
+    ],
+    // S piece
+    [
+      [
+        [0, 1, 1],
+        [1, 1, 0]
+      ],
+      [
+        [1, 0],
+        [1, 1],
+        [0, 1]
+      ],
+    ],
+    // Z piece
+    [
+      [
+        [1, 1, 0],
+        [0, 1, 1]
+      ],
+      [
+        [0, 1],
+        [1, 1],
+        [1, 0]
+      ],
+    ],
+    // J piece
+    [
+      [
+        [1, 0, 0],
+        [1, 1, 1]
+      ],
+      [
+        [1, 1],
+        [1, 0],
+        [1, 0]
+      ],
+      [
+        [1, 1, 1],
+        [0, 0, 1]
+      ],
+      [
+        [0, 1],
+        [0, 1],
+        [1, 1]
+      ],
+    ],
+    // L piece
+    [
+      [
+        [0, 0, 1],
+        [1, 1, 1]
+      ],
+      [
+        [1, 0],
+        [1, 0],
+        [1, 1]
+      ],
+      [
+        [1, 1, 1],
+        [1, 0, 0]
+      ],
+      [
+        [1, 1],
+        [0, 1],
+        [0, 1]
+      ],
+    ],
+  ];
+
+  final List<Color> pieceColors = [
+    Colors.cyan, // I
+    Colors.yellow, // O
+    Colors.purple, // T
+    Colors.green, // S
+    Colors.red, // Z
+    Colors.blue, // J
+    Colors.orange, // L
+  ];
+
+  int currentPieceType = 0;
 
   @override
   void initState() {
     super.initState();
-    _initializeBoard();
-    _startGame();
+    _resetGame();
   }
 
   @override
   void dispose() {
-    gameTimer?.cancel();
-    _focusNode.dispose();
+    if (isGameRunning) {
+      gameTimer.cancel();
+    }
     super.dispose();
   }
 
-  void _initializeBoard() {
-    board = List.generate(
-      boardHeight,
-      (row) => List.generate(boardWidth, (col) => null),
-    );
-  }
-
-  void _startGame() {
+  void _resetGame() {
+    board = List.generate(boardHeight, (index) => List.filled(boardWidth, 0));
+    score = 0;
+    level = 1;
+    linesCleared = 0;
     _spawnNewPiece();
-    _startGameTimer();
-  }
-
-  void _startGameTimer() {
-    gameTimer?.cancel();
-    final speed = Duration(milliseconds: max(100, 800 - (level * 50)));
-    gameTimer = Timer.periodic(speed, (timer) {
-      if (!gameOver && !gamePaused) {
-        _movePieceDown();
-      }
-    });
   }
 
   void _spawnNewPiece() {
-    if (nextPiece != null) {
-      currentPiece = nextPiece;
-    } else {
-      currentPiece = _getRandomPiece();
-    }
-    nextPiece = _getRandomPiece();
+    currentPieceType = Random().nextInt(pieces.length);
+    currentPiece = pieces[currentPieceType][0];
+    currentRotation = 0;
+    currentX = boardWidth ~/ 2 - currentPiece[0].length ~/ 2;
+    currentY = 0;
 
-    currentPiece!.x = boardWidth ~/ 2 - 1;
-    currentPiece!.y = 0;
-
-    if (_isColliding(currentPiece!)) {
-      _endGame();
+    if (_isColliding()) {
+      _gameOver();
     }
   }
 
-  TetrisPiece _getRandomPiece() {
-    final pieces = [
-      TetrisPiece.i(),
-      TetrisPiece.o(),
-      TetrisPiece.t(),
-      TetrisPiece.s(),
-      TetrisPiece.z(),
-      TetrisPiece.j(),
-      TetrisPiece.l(),
-    ];
-    return pieces[random.nextInt(pieces.length)];
-  }
-
-  void _movePieceDown() {
-    if (currentPiece == null) return;
-
-    currentPiece!.y++;
-    if (_isColliding(currentPiece!)) {
-      currentPiece!.y--;
-      _placePiece();
-      _clearLines();
-      _spawnNewPiece();
-    }
-    setState(() {});
-  }
-
-  void _movePieceLeft() {
-    if (currentPiece == null) return;
-
-    currentPiece!.x--;
-    if (_isColliding(currentPiece!)) {
-      currentPiece!.x++;
-    }
-    setState(() {});
-  }
-
-  void _movePieceRight() {
-    if (currentPiece == null) return;
-
-    currentPiece!.x++;
-    if (_isColliding(currentPiece!)) {
-      currentPiece!.x--;
-    }
-    setState(() {});
-  }
-
-  void _rotatePiece() {
-    if (currentPiece == null) return;
-
-    final oldShape = currentPiece!.shape;
-    currentPiece!.rotate();
-    if (_isColliding(currentPiece!)) {
-      currentPiece!.shape = oldShape;
-    }
-    setState(() {});
-  }
-
-  bool _isColliding(TetrisPiece piece) {
-    for (int row = 0; row < piece.shape.length; row++) {
-      for (int col = 0; col < piece.shape[row].length; col++) {
-        if (piece.shape[row][col] == 1) {
-          final boardX = piece.x + col;
-          final boardY = piece.y + row;
+  bool _isColliding() {
+    for (int y = 0; y < currentPiece.length; y++) {
+      for (int x = 0; x < currentPiece[y].length; x++) {
+        if (currentPiece[y][x] == 1) {
+          int boardX = currentX + x;
+          int boardY = currentY + y;
 
           if (boardX < 0 ||
               boardX >= boardWidth ||
               boardY >= boardHeight ||
-              (boardY >= 0 && board[boardY][boardX] != null)) {
+              (boardY >= 0 && board[boardY][boardX] != 0)) {
             return true;
           }
         }
@@ -231,387 +204,675 @@ class _TetrisGameState extends State<TetrisGame> {
     return false;
   }
 
+  void _movePiece(int dx, int dy) {
+    currentX += dx;
+    currentY += dy;
+
+    if (_isColliding()) {
+      currentX -= dx;
+      currentY -= dy;
+
+      if (dy > 0) {
+        _placePiece();
+      }
+    }
+  }
+
+  void _rotatePiece() {
+    List<List<List<int>>> rotations = pieces[currentPieceType];
+    int nextRotation = (currentRotation + 1) % rotations.length;
+    List<List<int>> oldPiece = currentPiece;
+
+    currentPiece = rotations[nextRotation];
+    currentRotation = nextRotation;
+
+    if (_isColliding()) {
+      currentPiece = oldPiece;
+      currentRotation = (currentRotation - 1) % rotations.length;
+    }
+  }
+
   void _placePiece() {
-    if (currentPiece == null) return;
+    for (int y = 0; y < currentPiece.length; y++) {
+      for (int x = 0; x < currentPiece[y].length; x++) {
+        if (currentPiece[y][x] == 1) {
+          int boardX = currentX + x;
+          int boardY = currentY + y;
 
-    for (int row = 0; row < currentPiece!.shape.length; row++) {
-      for (int col = 0; col < currentPiece!.shape[row].length; col++) {
-        if (currentPiece!.shape[row][col] == 1) {
-          final boardX = currentPiece!.x + col;
-          final boardY = currentPiece!.y + row;
-
-          if (boardY >= 0 &&
-              boardY < boardHeight &&
-              boardX >= 0 &&
-              boardX < boardWidth) {
-            board[boardY][boardX] = currentPiece!.color;
+          if (boardY >= 0) {
+            board[boardY][boardX] = currentPieceType + 1;
           }
         }
       }
     }
+
+    _clearLines();
+    _spawnNewPiece();
   }
 
   void _clearLines() {
-    int clearedCount = 0;
+    int cleared = 0;
 
-    for (int row = boardHeight - 1; row >= 0; row--) {
-      if (board[row].every((cell) => cell != null)) {
-        board.removeAt(row);
-        board.insert(0, List.generate(boardWidth, (col) => null));
-        row++; // Check the same row again
-        clearedCount++;
+    for (int y = boardHeight - 1; y >= 0; y--) {
+      bool isLineFull = true;
+      for (int x = 0; x < boardWidth; x++) {
+        if (board[y][x] == 0) {
+          isLineFull = false;
+          break;
+        }
+      }
+
+      if (isLineFull) {
+        board.removeAt(y);
+        board.insert(0, List.filled(boardWidth, 0));
+        cleared++;
+        y++; // Check the same line again
       }
     }
 
-    if (clearedCount > 0) {
-      linesCleared += clearedCount;
-      score += clearedCount * 100 * level;
+    if (cleared > 0) {
+      linesCleared += cleared;
+      score += cleared * 100 * level;
       level = (linesCleared ~/ 10) + 1;
-      _startGameTimer(); // Update speed
     }
   }
 
-  void _endGame() {
-    gameOver = true;
-    gameTimer?.cancel();
-    setState(() {});
+  void _gameOver() {
+    if (isGameRunning) {
+      gameTimer.cancel();
+      isGameRunning = false;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Game Over'),
+        content: Text('Score: $score\nLevel: $level\nLines: $linesCleared'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _resetGame();
+            },
+            child: const Text('Play Again'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.pop(context);
+            },
+            child: const Text('Exit'),
+          ),
+        ],
+      ),
+    );
   }
 
-  void _restartGame() {
-    setState(() {
-      gameOver = false;
-      gamePaused = false;
-      score = 0;
-      level = 1;
-      linesCleared = 0;
-      _initializeBoard();
-      _startGame();
-    });
+  void _startGame() {
+    if (!isGameRunning) {
+      isGameRunning = true;
+      gameTimer = Timer.periodic(
+        Duration(milliseconds: 500 - (level - 1) * 50),
+        (timer) {
+          _movePiece(0, 1);
+        },
+      );
+    }
+  }
+
+  void _pauseGame() {
+    if (isGameRunning) {
+      gameTimer.cancel();
+      isGameRunning = false;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Focus(
-      focusNode: _focusNode,
-      autofocus: true,
-      onKeyEvent: (node, event) {
-        if (event is KeyDownEvent && !gameOver && !gamePaused) {
-          switch (event.logicalKey) {
-            case LogicalKeyboardKey.arrowLeft:
-              _movePieceLeft();
-              return KeyEventResult.handled;
-            case LogicalKeyboardKey.arrowRight:
-              _movePieceRight();
-              return KeyEventResult.handled;
-            case LogicalKeyboardKey.arrowDown:
-              _movePieceDown();
-              return KeyEventResult.handled;
-            case LogicalKeyboardKey.arrowUp:
-            case LogicalKeyboardKey.space:
-              _rotatePiece();
-              return KeyEventResult.handled;
-          }
-        }
-        return KeyEventResult.ignored;
-      },
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Game Board
-            Container(
-              width: boardWidth * blockSize,
-              height: boardHeight * blockSize,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.white, width: 2),
-                color: const Color(0xFF1A1A3A),
-              ),
-              child: CustomPaint(
-                painter: TetrisPainter(
-                  board: board,
-                  currentPiece: currentPiece,
-                  blockSize: blockSize,
-                ),
-              ),
-            ),
-
-            const SizedBox(width: 30),
-
-            // Score Panel
-            Container(
-              width: 200,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1A1A3A),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF6366F1)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Score: $score',
-                    style: GoogleFonts.inter(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Level: $level',
-                    style: GoogleFonts.inter(
-                      color: Colors.white,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Lines: $linesCleared',
-                    style: GoogleFonts.inter(
-                      color: Colors.white,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Next Piece Preview
-                  if (nextPiece != null) ...[
-                    Text(
-                      'Next:',
-                      style: GoogleFonts.inter(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      width: 80,
-                      height: 80,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey),
-                        color: const Color(0xFF0F0F23),
-                      ),
-                      child: CustomPaint(
-                        painter: NextPiecePainter(
-                          piece: nextPiece!,
-                          blockSize: 15,
+    return Scaffold(
+      backgroundColor: const Color(0xFF0A0A0B),
+      appBar: AppBar(
+        title: const Text('Tetris',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        backgroundColor: const Color(0xFF1A1A1D),
+        foregroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: true,
+      ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF0A0A0B),
+              Color(0xFF1A1A1D),
+              Color(0xFF262629),
+            ],
+          ),
+        ),
+        child: KeyboardListener(
+          focusNode: FocusNode()..requestFocus(),
+          onKeyEvent: (event) {
+            if (event is KeyDownEvent && isGameRunning) {
+              switch (event.logicalKey) {
+                case LogicalKeyboardKey.arrowLeft:
+                  _movePiece(-1, 0);
+                  break;
+                case LogicalKeyboardKey.arrowRight:
+                  _movePiece(1, 0);
+                  break;
+                case LogicalKeyboardKey.arrowDown:
+                  _movePiece(0, 1);
+                  break;
+                case LogicalKeyboardKey.arrowUp:
+                case LogicalKeyboardKey.space:
+                  _rotatePiece();
+                  break;
+              }
+              setState(() {});
+            }
+          },
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth < 800) {
+                // Mobile layout
+                return Column(
+                  children: [
+                    // Game board
+                    Expanded(
+                      flex: 3,
+                      child: Center(
+                        child: Container(
+                          margin: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(15),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.cyan.withOpacity(0.3),
+                                blurRadius: 20,
+                                spreadRadius: 2,
+                              ),
+                            ],
+                            border: Border.all(
+                              color: Colors.cyan.withOpacity(0.5),
+                              width: 2,
+                            ),
+                            gradient: const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Color(0xFF1A1A1D),
+                                Color(0xFF262629),
+                                Color(0xFF1A1A1D),
+                              ],
+                            ),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(13),
+                            child: AspectRatio(
+                              aspectRatio: boardWidth / boardHeight,
+                              child: CustomPaint(
+                                painter: TetrisPainter(
+                                  board: board,
+                                  currentPiece: currentPiece,
+                                  currentX: currentX,
+                                  currentY: currentY,
+                                  currentPieceType: currentPieceType,
+                                  pieceColors: pieceColors,
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ],
-
-                  const SizedBox(height: 20),
-
-                  if (gameOver) ...[
-                    Text(
-                      'Game Over!',
-                      style: GoogleFonts.inter(
-                        color: Colors.red,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                    // Bottom panel
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1A1A1D).withOpacity(0.8),
+                        borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(20)),
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    ElevatedButton(
-                      onPressed: _restartGame,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF6366F1),
-                        foregroundColor: Colors.white,
-                      ),
-                      child: Text('Restart', style: GoogleFonts.inter()),
-                    ),
-                  ] else ...[
-                    ElevatedButton(
-                      onPressed: () {
-                        setState(() {
-                          gamePaused = !gamePaused;
-                        });
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF6366F1),
-                        foregroundColor: Colors.white,
-                      ),
-                      child: Text(
-                        gamePaused ? 'Resume' : 'Pause',
-                        style: GoogleFonts.inter(),
-                      ),
+                      child: _buildControlPanel(),
                     ),
                   ],
+                );
+              } else {
+                // Desktop layout
+                return Row(
+                  children: [
+                    // Game board
+                    Expanded(
+                      flex: 2,
+                      child: Center(
+                        child: Container(
+                          margin: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(15),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.cyan.withOpacity(0.3),
+                                blurRadius: 20,
+                                spreadRadius: 2,
+                              ),
+                            ],
+                            border: Border.all(
+                              color: Colors.cyan.withOpacity(0.5),
+                              width: 2,
+                            ),
+                            gradient: const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Color(0xFF1A1A1D),
+                                Color(0xFF262629),
+                                Color(0xFF1A1A1D),
+                              ],
+                            ),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(13),
+                            child: AspectRatio(
+                              aspectRatio: boardWidth / boardHeight,
+                              child: CustomPaint(
+                                painter: TetrisPainter(
+                                  board: board,
+                                  currentPiece: currentPiece,
+                                  currentX: currentX,
+                                  currentY: currentY,
+                                  currentPieceType: currentPieceType,
+                                  pieceColors: pieceColors,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Side panel
+                    Expanded(
+                      flex: 1,
+                      child: Container(
+                        padding: const EdgeInsets.all(20),
+                        child: _buildControlPanel(),
+                      ),
+                    ),
+                  ],
+                );
+              }
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildControlPanel() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFF262629).withOpacity(0.8),
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(color: Colors.cyan.withOpacity(0.3)),
+          ),
+          child: Column(
+            children: [
+              Text(
+                'Score',
+                style: TextStyle(
+                  color: Colors.cyan.shade300,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Text(
+                '$score',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: const Color(0xFF262629).withOpacity(0.8),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.purple.withOpacity(0.3)),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    'Level',
+                    style: TextStyle(
+                      color: Colors.purple.shade300,
+                      fontSize: 14,
+                    ),
+                  ),
+                  Text(
+                    '$level',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: const Color(0xFF262629).withOpacity(0.8),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.green.withOpacity(0.3)),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    'Lines',
+                    style: TextStyle(
+                      color: Colors.green.shade300,
+                      fontSize: 14,
+                    ),
+                  ),
+                  Text(
+                    '$linesCleared',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ],
               ),
             ),
           ],
         ),
-      ),
+        const SizedBox(height: 30),
+        Container(
+          width: double.infinity,
+          height: 50,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(25),
+            gradient: LinearGradient(
+              colors: isGameRunning
+                  ? [Colors.orange.shade600, Colors.red.shade600]
+                  : [Colors.cyan.shade600, Colors.blue.shade600],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: (isGameRunning ? Colors.orange : Colors.cyan)
+                    .withOpacity(0.3),
+                blurRadius: 10,
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: ElevatedButton(
+            onPressed: isGameRunning ? _pauseGame : _startGame,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.transparent,
+              shadowColor: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(25),
+              ),
+            ),
+            child: Text(
+              isGameRunning ? 'PAUSE' : 'START',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 15),
+        Container(
+          width: double.infinity,
+          height: 50,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(25),
+            border: Border.all(color: Colors.grey.shade600),
+            color: const Color(0xFF262629).withOpacity(0.8),
+          ),
+          child: ElevatedButton(
+            onPressed: () {
+              _pauseGame();
+              _resetGame();
+              setState(() {});
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.transparent,
+              shadowColor: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(25),
+              ),
+            ),
+            child: Text(
+              'RESET',
+              style: TextStyle(
+                color: Colors.grey.shade300,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 30),
+        Container(
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(
+            color: const Color(0xFF262629).withOpacity(0.6),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.grey.withOpacity(0.3)),
+          ),
+          child: Column(
+            children: [
+              Text(
+                'Controls',
+                style: TextStyle(
+                  color: Colors.grey.shade300,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                '← → Move\n↓ Soft Drop\n↑ Rotate\nSpace Rotate',
+                style: TextStyle(
+                  color: Colors.grey.shade400,
+                  fontSize: 12,
+                  height: 1.5,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
 
-class TetrisPiece {
-  List<List<int>> shape;
-  int x;
-  int y;
-  Color color;
-
-  TetrisPiece({
-    required this.shape,
-    required this.color,
-    this.x = 0,
-    this.y = 0,
-  });
-
-  factory TetrisPiece.i() => TetrisPiece(
-        shape: [
-          [1, 1, 1, 1],
-        ],
-        color: Colors.cyan,
-      );
-
-  factory TetrisPiece.o() => TetrisPiece(
-        shape: [
-          [1, 1],
-          [1, 1],
-        ],
-        color: Colors.yellow,
-      );
-
-  factory TetrisPiece.t() => TetrisPiece(
-        shape: [
-          [0, 1, 0],
-          [1, 1, 1],
-        ],
-        color: Colors.purple,
-      );
-
-  factory TetrisPiece.s() => TetrisPiece(
-        shape: [
-          [0, 1, 1],
-          [1, 1, 0],
-        ],
-        color: Colors.green,
-      );
-
-  factory TetrisPiece.z() => TetrisPiece(
-        shape: [
-          [1, 1, 0],
-          [0, 1, 1],
-        ],
-        color: Colors.red,
-      );
-
-  factory TetrisPiece.j() => TetrisPiece(
-        shape: [
-          [1, 0, 0],
-          [1, 1, 1],
-        ],
-        color: Colors.blue,
-      );
-
-  factory TetrisPiece.l() => TetrisPiece(
-        shape: [
-          [0, 0, 1],
-          [1, 1, 1],
-        ],
-        color: Colors.orange,
-      );
-
-  void rotate() {
-    final rows = shape.length;
-    final cols = shape[0].length;
-    final rotated = List.generate(cols, (i) => List.generate(rows, (j) => 0));
-
-    for (int i = 0; i < rows; i++) {
-      for (int j = 0; j < cols; j++) {
-        rotated[j][rows - 1 - i] = shape[i][j];
-      }
-    }
-
-    shape = rotated;
-  }
-}
-
 class TetrisPainter extends CustomPainter {
-  final List<List<Color?>> board;
-  final TetrisPiece? currentPiece;
-  final double blockSize;
+  final List<List<int>> board;
+  final List<List<int>> currentPiece;
+  final int currentX;
+  final int currentY;
+  final int currentPieceType;
+  final List<Color> pieceColors;
 
   TetrisPainter({
     required this.board,
     required this.currentPiece,
-    required this.blockSize,
+    required this.currentX,
+    required this.currentY,
+    required this.currentPieceType,
+    required this.pieceColors,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint();
+    final double cellWidth = size.width / 10; // boardWidth
+    final double cellHeight = size.height / 20; // boardHeight
 
-    // Draw board
-    for (int row = 0; row < board.length; row++) {
-      for (int col = 0; col < board[row].length; col++) {
-        final color = board[row][col];
-        if (color != null) {
-          paint.color = color;
-          final rect = Rect.fromLTWH(
-            col * blockSize,
-            row * blockSize,
-            blockSize - 1,
-            blockSize - 1,
+    // Draw board background
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      Paint()..color = const Color(0xFF0A0A0B),
+    );
+
+    // Draw grid
+    for (int y = 0; y < 20; y++) {
+      for (int x = 0; x < 10; x++) {
+        final rect = Rect.fromLTWH(
+          x * cellWidth,
+          y * cellHeight,
+          cellWidth,
+          cellHeight,
+        );
+
+        // Draw cell background with subtle gradient
+        final gradient = RadialGradient(
+          center: const Alignment(0.3, 0.3),
+          radius: 1.0,
+          colors: [
+            const Color(0xFF1A1A1D),
+            const Color(0xFF0F0F11),
+          ],
+        );
+
+        canvas.drawRect(
+          rect,
+          Paint()..shader = gradient.createShader(rect),
+        );
+
+        // Draw subtle grid lines
+        canvas.drawRect(
+          rect,
+          Paint()
+            ..color = Colors.cyan.withOpacity(0.1)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 0.5,
+        );
+
+        // Draw placed pieces with glow effect
+        if (board[y][x] > 0) {
+          final color = pieceColors[board[y][x] - 1];
+
+          // Glow effect
+          canvas.drawRect(
+            rect.inflate(2),
+            Paint()
+              ..color = color.withOpacity(0.3)
+              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
           );
-          canvas.drawRect(rect, paint);
+
+          // Main piece with gradient
+          final pieceGradient = LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              color.withOpacity(0.9),
+              color.withOpacity(0.7),
+              color.withOpacity(0.5),
+            ],
+          );
+
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(rect.deflate(1), const Radius.circular(3)),
+            Paint()..shader = pieceGradient.createShader(rect),
+          );
+
+          // Highlight
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(
+              Rect.fromLTWH(rect.left + 2, rect.top + 2, rect.width - 4,
+                  rect.height * 0.3),
+              const Radius.circular(2),
+            ),
+            Paint()..color = Colors.white.withOpacity(0.3),
+          );
         }
       }
     }
 
-    // Draw current piece
-    if (currentPiece != null) {
-      paint.color = currentPiece!.color;
-      for (int row = 0; row < currentPiece!.shape.length; row++) {
-        for (int col = 0; col < currentPiece!.shape[row].length; col++) {
-          if (currentPiece!.shape[row][col] == 1) {
-            final x = (currentPiece!.x + col) * blockSize;
-            final y = (currentPiece!.y + row) * blockSize;
-            final rect = Rect.fromLTWH(x, y, blockSize - 1, blockSize - 1);
-            canvas.drawRect(rect, paint);
+    // Draw current piece with animation
+    for (int y = 0; y < currentPiece.length; y++) {
+      for (int x = 0; x < currentPiece[y].length; x++) {
+        if (currentPiece[y][x] == 1) {
+          final boardX = currentX + x;
+          final boardY = currentY + y;
+
+          if (boardX >= 0 && boardX < 10 && boardY >= 0 && boardY < 20) {
+            final rect = Rect.fromLTWH(
+              boardX * cellWidth,
+              boardY * cellHeight,
+              cellWidth,
+              cellHeight,
+            );
+
+            final color = pieceColors[currentPieceType];
+
+            // Animated glow
+            canvas.drawRect(
+              rect.inflate(3),
+              Paint()
+                ..color = color.withOpacity(0.4)
+                ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+            );
+
+            // Main piece with stronger gradient
+            final pieceGradient = LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                color,
+                color.withOpacity(0.8),
+                color.withOpacity(0.6),
+              ],
+            );
+
+            canvas.drawRRect(
+              RRect.fromRectAndRadius(
+                  rect.deflate(1), const Radius.circular(4)),
+              Paint()..shader = pieceGradient.createShader(rect),
+            );
+
+            // Strong highlight for current piece
+            canvas.drawRRect(
+              RRect.fromRectAndRadius(
+                Rect.fromLTWH(rect.left + 2, rect.top + 2, rect.width - 4,
+                    rect.height * 0.4),
+                const Radius.circular(2),
+              ),
+              Paint()..color = Colors.white.withOpacity(0.5),
+            );
+
+            // Border
+            canvas.drawRRect(
+              RRect.fromRectAndRadius(
+                  rect.deflate(1), const Radius.circular(4)),
+              Paint()
+                ..color = color.withOpacity(0.8)
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1,
+            );
           }
-        }
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
-}
-
-class NextPiecePainter extends CustomPainter {
-  final TetrisPiece piece;
-  final double blockSize;
-
-  NextPiecePainter({
-    required this.piece,
-    required this.blockSize,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = piece.color;
-
-    final offsetX = (size.width - piece.shape[0].length * blockSize) / 2;
-    final offsetY = (size.height - piece.shape.length * blockSize) / 2;
-
-    for (int row = 0; row < piece.shape.length; row++) {
-      for (int col = 0; col < piece.shape[row].length; col++) {
-        if (piece.shape[row][col] == 1) {
-          final rect = Rect.fromLTWH(
-            offsetX + col * blockSize,
-            offsetY + row * blockSize,
-            blockSize - 1,
-            blockSize - 1,
-          );
-          canvas.drawRect(rect, paint);
         }
       }
     }

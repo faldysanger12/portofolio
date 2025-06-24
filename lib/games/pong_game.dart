@@ -1,336 +1,671 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flame/game.dart';
-import 'package:flame/components.dart';
-import 'package:flame/events.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'dart:math';
+import 'dart:async';
 
-class PongGameScreen extends StatelessWidget {
-  const PongGameScreen({super.key});
+class PongGame extends StatefulWidget {
+  const PongGame({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0F0F23),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1A1A3A),
-        title: Text(
-          'Pong Game',
-          style: GoogleFonts.inter(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.help_outline, color: Colors.white),
-            onPressed: () => _showControls(context),
-          ),
-        ],
-      ),
-      body: _PongGameWrapper(),
-    );
-  }
-
-  void _showControls(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A3A),
-        title: Text(
-          'Game Controls',
-          style: GoogleFonts.inter(
-              color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('🖱️ Click/touch to move paddle to that position',
-                style: GoogleFonts.inter(color: Colors.white)),
-            const SizedBox(height: 8),
-            Text('🖱️ Drag to move paddle up/down',
-                style: GoogleFonts.inter(color: Colors.white)),
-            const SizedBox(height: 8),
-            Text('⌨️ Arrow keys or W/S to move paddle',
-                style: GoogleFonts.inter(color: Colors.white)),
-            const SizedBox(height: 8),
-            Text('🏓 Score points by hitting the ball past opponent',
-                style: GoogleFonts.inter(color: Colors.white)),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('OK',
-                style: GoogleFonts.inter(color: const Color(0xFF6366F1))),
-          ),
-        ],
-      ),
-    );
-  }
+  State<PongGame> createState() => _PongGameState();
 }
 
-class _PongGameWrapper extends StatefulWidget {
-  @override
-  State<_PongGameWrapper> createState() => _PongGameWrapperState();
-}
+class _PongGameState extends State<PongGame> with TickerProviderStateMixin {
+  static const double paddleWidth = 20;
+  static const double paddleHeight = 100;
+  static const double ballSize = 20;
+  static const int gameSpeed = 16; // milliseconds
 
-class _PongGameWrapperState extends State<_PongGameWrapper> {
-  late PongGame game;
+  Timer? gameTimer;
+  bool isGameRunning = false;
+  bool isGameStarted = false;
+
+  late AnimationController _ballController;
+  late Animation<double> _ballAnimation;
+  late AnimationController _paddleController;
+  late Animation<double> _paddleAnimation;
+  late AnimationController _backgroundController;
+  late Animation<double> _backgroundAnimation;
+
+  // Paddle positions (0 to 1, where 0 is top, 1 is bottom)
+  double playerPaddleY = 0.5;
+  double aiPaddleY = 0.5;
+
+  // Ball properties
+  double ballX = 0.5;
+  double ballY = 0.5;
+  double ballVelocityX = 0.003;
+  double ballVelocityY = 0.002;
+
+  // Scores
+  int playerScore = 0;
+  int aiScore = 0;
+  int winningScore = 5;
+
+  // AI difficulty
+  double aiSpeed = 0.01;
 
   @override
   void initState() {
     super.initState();
-    game = PongGame();
+
+    _ballController = AnimationController(
+      duration: const Duration(milliseconds: 500),
+      vsync: this,
+    );
+
+    _ballAnimation = Tween<double>(
+      begin: 0.8,
+      end: 1.2,
+    ).animate(CurvedAnimation(
+      parent: _ballController,
+      curve: Curves.easeInOut,
+    ));
+
+    _paddleController = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+
+    _paddleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 1.1,
+    ).animate(CurvedAnimation(
+      parent: _paddleController,
+      curve: Curves.easeOut,
+    ));
+
+    _backgroundController = AnimationController(
+      duration: const Duration(seconds: 10),
+      vsync: this,
+    )..repeat();
+
+    _backgroundAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(_backgroundController);
+
+    _resetGame();
+  }
+
+  @override
+  void dispose() {
+    gameTimer?.cancel();
+    _ballController.dispose();
+    _paddleController.dispose();
+    _backgroundController.dispose();
+    super.dispose();
+  }
+
+  void _resetGame() {
+    setState(() {
+      playerPaddleY = 0.5;
+      aiPaddleY = 0.5;
+      ballX = 0.5;
+      ballY = 0.5;
+      ballVelocityX = (Random().nextBool() ? 1 : -1) * 0.003;
+      ballVelocityY = (Random().nextDouble() - 0.5) * 0.004;
+      isGameRunning = false;
+      isGameStarted = false;
+    });
+  }
+
+  void _startGame() {
+    if (!isGameRunning) {
+      setState(() {
+        isGameRunning = true;
+        isGameStarted = true;
+      });
+
+      gameTimer = Timer.periodic(
+        Duration(milliseconds: gameSpeed),
+        (timer) => _updateGame(),
+      );
+    }
+  }
+
+  void _pauseGame() {
+    if (isGameRunning) {
+      setState(() {
+        isGameRunning = false;
+      });
+      gameTimer?.cancel();
+    }
+  }
+
+  void _updateGame() {
+    if (!isGameRunning) return;
+
+    setState(() {
+      // Update ball position
+      ballX += ballVelocityX;
+      ballY += ballVelocityY;
+
+      // Ball collision with top and bottom walls
+      if (ballY <= 0 || ballY >= 1) {
+        ballVelocityY = -ballVelocityY;
+        ballY = ballY <= 0 ? 0 : 1;
+        _ballController.forward().then((_) => _ballController.reverse());
+      }
+
+      // Ball collision with paddles
+      if (ballX <= paddleWidth / 400 && // Player paddle area
+          ballY >= playerPaddleY - 0.1 &&
+          ballY <= playerPaddleY + 0.1) {
+        ballVelocityX = -ballVelocityX;
+        ballVelocityY += (Random().nextDouble() - 0.5) * 0.002;
+        _paddleController.forward().then((_) => _paddleController.reverse());
+      }
+
+      if (ballX >= 1 - (paddleWidth / 400) && // AI paddle area
+          ballY >= aiPaddleY - 0.1 &&
+          ballY <= aiPaddleY + 0.1) {
+        ballVelocityX = -ballVelocityX;
+        ballVelocityY += (Random().nextDouble() - 0.5) * 0.002;
+      }
+
+      // AI movement
+      if (ballX > 0.5) {
+        if (aiPaddleY < ballY) {
+          aiPaddleY = min(1.0, aiPaddleY + aiSpeed);
+        } else {
+          aiPaddleY = max(0.0, aiPaddleY - aiSpeed);
+        }
+      }
+
+      // Score points
+      if (ballX < 0) {
+        aiScore++;
+        _resetBall();
+      } else if (ballX > 1) {
+        playerScore++;
+        _resetBall();
+      }
+
+      // Check for game end
+      if (playerScore >= winningScore || aiScore >= winningScore) {
+        _pauseGame();
+      }
+    });
+  }
+
+  void _resetBall() {
+    ballX = 0.5;
+    ballY = 0.5;
+    ballVelocityX = (Random().nextBool() ? 1 : -1) * 0.003;
+    ballVelocityY = (Random().nextDouble() - 0.5) * 0.004;
+  }
+
+  void _movePaddle(double delta) {
+    setState(() {
+      playerPaddleY = (playerPaddleY + delta).clamp(0.0, 1.0);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onPanUpdate: (details) {
-        final screenHeight = MediaQuery.of(context).size.height;
-        final relativeY = details.globalPosition.dy / screenHeight;
-        game.updatePlayerPaddle(relativeY);
-      },
-      onTapUp: (details) {
-        final screenHeight = MediaQuery.of(context).size.height;
-        final relativeY = details.globalPosition.dy / screenHeight;
-        game.updatePlayerPaddle(relativeY);
-      },
-      child: Focus(
-        autofocus: true,
-        child: GameWidget<PongGame>.controlled(
-          gameFactory: () => game,
+    return Scaffold(
+      backgroundColor: const Color(0xFF0A0A0A),
+      appBar: AppBar(
+        title: const Text(
+          'Pong Game',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return Stack(
+            children: [
+              // Animated Background
+              AnimatedBuilder(
+                animation: _backgroundAnimation,
+                builder: (context, child) {
+                  return CustomPaint(
+                    painter: PongBackgroundPainter(_backgroundAnimation.value),
+                    size: Size(constraints.maxWidth, constraints.maxHeight),
+                  );
+                },
+              ),
+
+              // Game Area
+              Container(
+                width: double.infinity,
+                height: double.infinity,
+                child: Stack(
+                  children: [
+                    // Center line
+                    _buildCenterLine(constraints),
+
+                    // Player paddle
+                    _buildPlayerPaddle(constraints),
+
+                    // AI paddle
+                    _buildAIPaddle(constraints),
+
+                    // Ball
+                    _buildBall(constraints),
+
+                    // Touch controls for mobile
+                    if (Theme.of(context).platform == TargetPlatform.android ||
+                        Theme.of(context).platform == TargetPlatform.iOS)
+                      _buildTouchControls(constraints),
+                  ],
+                ),
+              ),
+
+              // UI Overlay
+              _buildUI(constraints),
+
+              // Game Over Dialog
+              if ((playerScore >= winningScore || aiScore >= winningScore) &&
+                  !isGameRunning)
+                _buildGameOverDialog(),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildCenterLine(BoxConstraints constraints) {
+    return Positioned(
+      left: constraints.maxWidth / 2 - 1,
+      top: 0,
+      bottom: 0,
+      child: Container(
+        width: 2,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.5),
+          borderRadius: BorderRadius.circular(1),
         ),
       ),
     );
   }
-}
 
-class PongGame extends FlameGame
-    with HasCollisionDetection, HasKeyboardHandlerComponents {
-  late Paddle playerPaddle;
-  late Paddle aiPaddle;
-  late Ball ball;
-  late TextComponent playerScoreText;
-  late TextComponent aiScoreText;
-  late TextComponent centerLine;
-
-  int playerScore = 0;
-  int aiScore = 0;
-
-  @override
-  Future<void> onLoad() async {
-    await super.onLoad();
-
-    // Create paddles
-    playerPaddle = Paddle(
-      position: Vector2(30, size.y / 2),
-      isPlayer: true,
-    );
-
-    aiPaddle = Paddle(
-      position: Vector2(size.x - 50, size.y / 2),
-      isPlayer: false,
-    );
-
-    // Create ball
-    ball = Ball(
-      position: Vector2(size.x / 2, size.y / 2),
-      gameSize: size,
-    );
-
-    add(playerPaddle);
-    add(aiPaddle);
-    add(ball);
-
-    // Score displays
-    playerScoreText = TextComponent(
-      text: '0',
-      position: Vector2(size.x / 4, 50),
-      anchor: Anchor.center,
-      textRenderer: TextPaint(
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 48,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-
-    aiScoreText = TextComponent(
-      text: '0',
-      position: Vector2(3 * size.x / 4, 50),
-      anchor: Anchor.center,
-      textRenderer: TextPaint(
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 48,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-
-    add(playerScoreText);
-    add(aiScoreText);
-
-    // Center line
-    centerLine = TextComponent(
-      text: '|',
-      position: Vector2(size.x / 2, size.y / 2),
-      anchor: Anchor.center,
-      textRenderer: TextPaint(
-        style: TextStyle(
-          color: Colors.white.withOpacity(0.3),
-          fontSize: 400,
-          fontWeight: FontWeight.w100,
-        ),
-      ),
-    );
-    add(centerLine);
-  }
-
-  @override
-  void update(double dt) {
-    super.update(dt);
-
-    // AI paddle follows ball
-    final ballY = ball.position.y;
-    final paddleY = aiPaddle.position.y;
-    final aiSpeed = 200.0;
-
-    if (ballY > paddleY + 10) {
-      aiPaddle.position.y += aiSpeed * dt;
-    } else if (ballY < paddleY - 10) {
-      aiPaddle.position.y -= aiSpeed * dt;
-    }
-
-    // Keep AI paddle in bounds
-    aiPaddle.position.y = aiPaddle.position.y.clamp(50, size.y - 50);
-
-    // Check ball collisions with paddles
-    if (ball.position.x <= playerPaddle.position.x + 20 &&
-        ball.position.y >= playerPaddle.position.y - 50 &&
-        ball.position.y <= playerPaddle.position.y + 50 &&
-        ball.velocity.x < 0) {
-      ball.velocity.x = -ball.velocity.x;
-      ball.velocity.y += (ball.position.y - playerPaddle.position.y) * 0.1;
-    }
-
-    if (ball.position.x >= aiPaddle.position.x - 20 &&
-        ball.position.y >= aiPaddle.position.y - 50 &&
-        ball.position.y <= aiPaddle.position.y + 50 &&
-        ball.velocity.x > 0) {
-      ball.velocity.x = -ball.velocity.x;
-      ball.velocity.y += (ball.position.y - aiPaddle.position.y) * 0.1;
-    }
-
-    // Check scoring
-    if (ball.position.x < 0) {
-      aiScore++;
-      aiScoreText.text = aiScore.toString();
-      resetBall();
-    } else if (ball.position.x > size.x) {
-      playerScore++;
-      playerScoreText.text = playerScore.toString();
-      resetBall();
-    }
-  }
-
-  void updatePlayerPaddle(double relativeY) {
-    final targetY = relativeY * size.y;
-    playerPaddle.position.y = targetY.clamp(50, size.y - 50);
-  }
-
-  @override
-  KeyEventResult onKeyEvent(
-      KeyEvent event, Set<LogicalKeyboardKey> keysPressed) {
-    super.onKeyEvent(event, keysPressed);
-
-    final paddleSpeed = 300.0;
-
-    if (keysPressed.contains(LogicalKeyboardKey.arrowUp) ||
-        keysPressed.contains(LogicalKeyboardKey.keyW)) {
-      playerPaddle.position.y = (playerPaddle.position.y - paddleSpeed * 0.016)
-          .clamp(50, size.y - 50);
-      return KeyEventResult.handled;
-    } else if (keysPressed.contains(LogicalKeyboardKey.arrowDown) ||
-        keysPressed.contains(LogicalKeyboardKey.keyS)) {
-      playerPaddle.position.y = (playerPaddle.position.y + paddleSpeed * 0.016)
-          .clamp(50, size.y - 50);
-      return KeyEventResult.handled;
-    }
-    return KeyEventResult.ignored;
-  }
-
-  void resetBall() {
-    ball.position = Vector2(size.x / 2, size.y / 2);
-    ball.velocity = Vector2(
-      Random().nextBool() ? 200 : -200,
-      Random().nextDouble() * 200 - 100,
-    );
-  }
-}
-
-class Paddle extends RectangleComponent {
-  final bool isPlayer;
-
-  Paddle({
-    required Vector2 position,
-    required this.isPlayer,
-  }) : super(
-          position: position,
-          size: Vector2(20, 100),
-          anchor: Anchor.center,
+  Widget _buildPlayerPaddle(BoxConstraints constraints) {
+    return AnimatedBuilder(
+      animation: _paddleAnimation,
+      builder: (context, child) {
+        return _buildPaddle(
+          constraints,
+          true,
+          playerPaddleY,
+          Colors.blue,
+          _paddleAnimation.value,
         );
+      },
+    );
+  }
 
-  @override
-  void render(Canvas canvas) {
-    final paint = Paint()..color = const Color(0xFF6366F1);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(0, 0, size.x, size.y),
-        const Radius.circular(10),
+  Widget _buildAIPaddle(BoxConstraints constraints) {
+    return _buildPaddle(
+      constraints,
+      false,
+      aiPaddleY,
+      Colors.red,
+      1.0,
+    );
+  }
+
+  Widget _buildPaddle(
+    BoxConstraints constraints,
+    bool isPlayer,
+    double paddleY,
+    Color color,
+    double scale,
+  ) {
+    double paddlePixelHeight = constraints.maxHeight * 0.2;
+    double paddlePixelWidth = paddleWidth;
+
+    return Positioned(
+      left: isPlayer ? 10 : constraints.maxWidth - paddlePixelWidth - 10,
+      top: (paddleY * constraints.maxHeight) - (paddlePixelHeight / 2),
+      child: Transform.scale(
+        scale: scale,
+        child: Container(
+          width: paddlePixelWidth,
+          height: paddlePixelHeight,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                color,
+                color.withOpacity(0.7),
+              ],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(0.5),
+                blurRadius: 10,
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+        ),
       ),
-      paint,
+    );
+  }
+
+  Widget _buildBall(BoxConstraints constraints) {
+    return Positioned(
+      left: (ballX * constraints.maxWidth) - (ballSize / 2),
+      top: (ballY * constraints.maxHeight) - (ballSize / 2),
+      child: AnimatedBuilder(
+        animation: _ballAnimation,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: _ballAnimation.value,
+            child: Container(
+              width: ballSize,
+              height: ballSize,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const RadialGradient(
+                  colors: [
+                    Colors.white,
+                    Colors.grey,
+                  ],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.white.withOpacity(0.5),
+                    blurRadius: 15,
+                    spreadRadius: 3,
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildTouchControls(BoxConstraints constraints) {
+    return Positioned(
+      left: 0,
+      bottom: 20,
+      child: Column(
+        children: [
+          GestureDetector(
+            onTap: () => _movePaddle(-0.1),
+            child: Container(
+              width: 60,
+              height: 60,
+              margin: const EdgeInsets.all(5),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.7),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.keyboard_arrow_up,
+                color: Colors.white,
+                size: 30,
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: () => _movePaddle(0.1),
+            child: Container(
+              width: 60,
+              height: 60,
+              margin: const EdgeInsets.all(5),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.7),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.keyboard_arrow_down,
+                color: Colors.white,
+                size: 30,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUI(BoxConstraints constraints) {
+    return Positioned(
+      top: 20,
+      left: 0,
+      right: 0,
+      child: Column(
+        children: [
+          // Score Display
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              // Player Score
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(15),
+                  border: Border.all(color: Colors.blue, width: 2),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'PLAYER',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      '$playerScore',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // AI Score
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(15),
+                  border: Border.all(color: Colors.red, width: 2),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'AI',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      '$aiScore',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          // Control Buttons
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ElevatedButton(
+                onPressed: isGameRunning ? _pauseGame : _startGame,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isGameRunning ? Colors.orange : Colors.green,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                ),
+                child: Text(isGameRunning ? 'PAUSE' : 'START'),
+              ),
+              const SizedBox(width: 10),
+              ElevatedButton(
+                onPressed: () {
+                  _pauseGame();
+                  setState(() {
+                    playerScore = 0;
+                    aiScore = 0;
+                  });
+                  _resetGame();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                ),
+                child: const Text('RESET'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGameOverDialog() {
+    String winner = playerScore >= winningScore ? 'PLAYER WINS!' : 'AI WINS!';
+    Color winnerColor = playerScore >= winningScore ? Colors.blue : Colors.red;
+
+    return Container(
+      color: Colors.black.withOpacity(0.8),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.all(30),
+          margin: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A1A1A),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: winnerColor, width: 3),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'GAME OVER',
+                style: TextStyle(
+                  color: winnerColor,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                winner,
+                style: TextStyle(
+                  color: winnerColor,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Final Score: $playerScore - $aiScore',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 30),
+              ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    playerScore = 0;
+                    aiScore = 0;
+                  });
+                  _resetGame();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: winnerColor,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+                ),
+                child: const Text('PLAY AGAIN'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
 
-class Ball extends CircleComponent {
-  Vector2 velocity = Vector2(200, 100);
-  final Vector2 gameSize;
+class PongBackgroundPainter extends CustomPainter {
+  final double animationValue;
 
-  Ball({
-    required Vector2 position,
-    required this.gameSize,
-  }) : super(
-          position: position,
-          radius: 10,
-          anchor: Anchor.center,
-        );
+  PongBackgroundPainter(this.animationValue);
 
   @override
-  void update(double dt) {
-    super.update(dt);
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint();
 
-    position += velocity * dt;
+    // Animated grid background
+    paint.color = Colors.white.withOpacity(0.05);
+    paint.strokeWidth = 1;
 
-    // Bounce off top and bottom walls
-    if (position.y <= radius || position.y >= gameSize.y - radius) {
-      velocity.y = -velocity.y;
+    double spacing = 50;
+    double offset = (animationValue * spacing) % spacing;
+
+    // Vertical lines
+    for (double x = -offset; x < size.width + spacing; x += spacing) {
+      canvas.drawLine(
+        Offset(x, 0),
+        Offset(x, size.height),
+        paint,
+      );
     }
+
+    // Horizontal lines
+    for (double y = -offset; y < size.height + spacing; y += spacing) {
+      canvas.drawLine(
+        Offset(0, y),
+        Offset(size.width, y),
+        paint,
+      );
+    }
+
+    // Center glow effect
+    final glowPaint = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          Colors.cyan.withOpacity(0.1),
+          Colors.transparent,
+        ],
+      ).createShader(Rect.fromCircle(
+        center: Offset(size.width / 2, size.height / 2),
+        radius: size.width / 3,
+      ));
+
+    canvas.drawCircle(
+      Offset(size.width / 2, size.height / 2),
+      size.width / 3,
+      glowPaint,
+    );
   }
 
   @override
-  void render(Canvas canvas) {
-    final paint = Paint()..color = const Color(0xFF10B981);
-    canvas.drawCircle(Offset(radius, radius), radius, paint);
-  }
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }

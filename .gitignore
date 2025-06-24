@@ -31,11 +31,7 @@ migrate_working_dir/
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
-# Keep build for Railway deployment
-# /build/
-
-# Railway deployment
-.railway/
+/build/
 
 # Symbolication related
 app.*.symbols
@@ -47,4 +43,3 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
-.vercel

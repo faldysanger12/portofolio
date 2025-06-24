@@ -1,7 +1,0 @@
-[build]
-builder = "dockerfile"
-
-[deploy]
-startCommand = "nginx -g 'daemon off;'"
-restartPolicyType = "on_failure"
-restartPolicyMaxRetries = 10

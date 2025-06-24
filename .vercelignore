@@ -1,0 +1,35 @@
+# Build artifacts
+build/
+.dart_tool/
+.packages
+
+# IDE files
+.vscode/
+.idea/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local Flutter installation (will be installed by Vercel)
+flutter/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Documentation files
+*.md
+!README.md
+
+# Development files
+android/
+ios/
+linux/
+macos/
+windows/
+test/

@@ -1,140 +1,100 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <base href="/">
-    <meta charset="UTF-8">
-    <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-    <meta name="description" content="Faldy Sanger - Flutter Developer & Automotive Enthusiast Portfolio">
-    <meta name="keywords" content="Faldy Sanger, Flutter Developer, Portfolio, Mini Games, Automotive">
-    <meta name="author" content="Faldy Sanger">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <base href="/">
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="Faldy Sanger - Flutter Developer Portfolio">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <!-- Preload critical resources -->
-    <link rel="preload" href="flutter.js" as="script">
-    <link rel="preload" href="main.dart.js" as="script">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <title>Faldy Sanger - Portfolio</title>
+  <link rel="manifest" href="manifest.json">
 
-    <!-- Meta tags for mobile -->
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black">
-    <meta name="apple-mobile-web-app-title" content="Faldy Portfolio">
-    <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <style>
+    body {
+      margin: 0;
+      background: linear-gradient(135deg, #000000, #111111);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #00FF00;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
 
-    <!-- Favicon -->
-    <link rel="icon" type="image/png" href="favicon.png" />
+    .loading {
+      text-align: center;
+    }
 
-    <title>Faldy Sanger - Portfolio</title>
-    <link rel="manifest" href="manifest.json">
+    .loader {
+      border: 4px solid rgba(0, 255, 0, 0.3);
+      border-radius: 50%;
+      border-top: 4px solid #00FF00;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
 
-    <style>
-        body {
-            margin: 0;
-            background: linear-gradient(135deg, #000000, #111111);
-            font-family: 'Orbitron', monospace;
-            color: #00FF00;
-            overflow: hidden;
-        }
+    .loading-text {
+      font-size: 16px;
+      color: #00FF00;
+    }
 
-        .loading {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            flex-direction: column;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            z-index: 9999;
-            background: linear-gradient(135deg, #000000, #111111);
-        }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
 
-        .loader {
-            border: 4px solid rgba(0, 255, 0, 0.3);
-            border-radius: 50%;
-            border-top: 4px solid #00FF00;
-            width: 60px;
-            height: 60px;
-            animation: spin 1s linear infinite;
-            margin-bottom: 20px;
-            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
-        }
-
-        .loading-text {
-            font-size: 18px;
-            font-weight: bold;
-            margin-bottom: 10px;
-            animation: pulse 2s ease-in-out infinite;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
-        }
-
-        /* Hide when Flutter loads */
-        .flutter-ready {
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.5s ease-out;
-        }
-    </style>
+    /* Hide loading when app loads */
+    flt-glass-pane {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+  </style>
 </head>
-
 <body>
-    <div id="loading" class="loading">
-        <div class="loader"></div>
-        <div class="loading-text">Loading Faldy's Portfolio...</div>
-    </div>
+  <div id="loading" class="loading">
+    <div class="loader"></div>
+    <div class="loading-text">Loading Portfolio...</div>
+  </div>
 
-    <script>
-        window.addEventListener('load', function() {
-            _flutter.loader.loadEntrypoint({
-                serviceWorker: {
-                    serviceWorkerVersion: null,
-                },
-                onEntrypointLoaded: function(engineInitializer) {
-                    engineInitializer.initializeEngine().then(function(appRunner) {
-                        return appRunner.runApp();
-                    }).then(function() {
-                        // App has loaded successfully
-                        setTimeout(function() {
-                            document.body.style.overflow = 'auto';
-                            const loading = document.getElementById('loading');
-                            if (loading) {
-                                loading.classList.add('flutter-ready');
-                                setTimeout(function() { 
-                                    loading.remove(); 
-                                }, 500);
-                            }
-                        }, 500);
-                    }).catch(function(error) {
-                        console.error('Flutter loading error:', error);
-                        // Fallback: hide loading anyway
-                        setTimeout(function() {
-                            document.body.style.overflow = 'auto';
-                            const loading = document.getElementById('loading');
-                            if (loading) loading.remove();
-                        }, 2000);
-                    });
-                }
-            });
-        });
+  <script>
+    const loading = document.getElementById('loading');
+    
+    // Simple loading removal after Flutter starts
+    function hideLoading() {
+      if (loading) {
+        loading.style.display = 'none';
+        document.body.style.overflow = 'auto';
+      }
+    }
 
-        // Fallback: Remove loading after 10 seconds
-        setTimeout(function() {
-            console.log('Fallback: removing loading screen');
-            document.body.style.overflow = 'auto';
-            const loading = document.getElementById('loading');
-            if (loading) loading.remove();
-        }, 10000);
-    </script>
-    <script src="flutter.js" defer></script>
+    // Listen for Flutter first frame
+    window.addEventListener('flutter-first-frame', hideLoading);
+    
+    // Fallback timer
+    setTimeout(hideLoading, 8000);
+  </script>
+  
+  <script>
+    window.addEventListener('load', function(ev) {
+      _flutter.loader.loadEntrypoint({
+        serviceWorker: {
+          serviceWorkerVersion: null,
+        },
+        onEntrypointLoaded: function(engineInitializer) {
+          engineInitializer.initializeEngine().then(function(appRunner) {
+            appRunner.runApp();
+          });
+        }
+      });
+    });
+  </script>
+  <script src="flutter.js" defer></script>
 </body>
 </html>

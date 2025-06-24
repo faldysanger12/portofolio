@@ -206,7 +206,7 @@ class _LazyGameWidgetState extends State<_LazyGameWidget> {
   Future<void> _loadGameAsync() async {
     // Add small delay for smooth transition
     await Future.delayed(const Duration(milliseconds: 500));
-    
+
     if (mounted) {
       setState(() {
         _gameWidget = _buildGameWidget();
@@ -218,11 +218,13 @@ class _LazyGameWidgetState extends State<_LazyGameWidget> {
   Widget _buildGameWidget() {
     switch (widget.gameName) {
       case 'Flappy Game':
-        return _buildGamePlaceholder('Flappy Bird', Icons.flight, Colors.yellow);
+        return _buildGamePlaceholder(
+            'Flappy Bird', Icons.flight, Colors.yellow);
       case 'Pong Game':
         return _buildGamePlaceholder('Pong', Icons.sports_tennis, Colors.cyan);
       case 'Tetris Game':
-        return _buildGamePlaceholder('Tetris', Icons.view_module, Colors.purple);
+        return _buildGamePlaceholder(
+            'Tetris', Icons.view_module, Colors.purple);
       default:
         return _buildComingSoon();
     }

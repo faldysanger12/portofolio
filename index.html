@@ -1,100 +1,22 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <base href="/">
-  <meta charset="UTF-8">
-  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="Faldy Sanger - Flutter Developer Portfolio">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <title>Faldy Sanger - Portfolio</title>
-  <link rel="manifest" href="manifest.json">
-
-  <style>
-    body {
-      margin: 0;
-      background: linear-gradient(135deg, #000000, #111111);
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      color: #00FF00;
-      overflow: hidden;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-    }
-
-    .loading {
-      text-align: center;
-    }
-
-    .loader {
-      border: 4px solid rgba(0, 255, 0, 0.3);
-      border-radius: 50%;
-      border-top: 4px solid #00FF00;
-      width: 50px;
-      height: 50px;
-      animation: spin 1s linear infinite;
-      margin: 0 auto 20px;
-    }
-
-    .loading-text {
-      font-size: 16px;
-      color: #00FF00;
-    }
-
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-
-    /* Hide loading when app loads */
-    flt-glass-pane {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flame Portfolio</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <script src="main.dart.js" type="application/javascript"></script>
 </head>
 <body>
-  <div id="loading" class="loading">
-    <div class="loader"></div>
-    <div class="loading-text">Loading Portfolio...</div>
-  </div>
-
-  <script>
-    const loading = document.getElementById('loading');
-    
-    // Simple loading removal after Flutter starts
-    function hideLoading() {
-      if (loading) {
-        loading.style.display = 'none';
-        document.body.style.overflow = 'auto';
-      }
-    }
-
-    // Listen for Flutter first frame
-    window.addEventListener('flutter-first-frame', hideLoading);
-    
-    // Fallback timer
-    setTimeout(hideLoading, 8000);
-  </script>
-  
-  <script>
-    window.addEventListener('load', function(ev) {
-      _flutter.loader.loadEntrypoint({
-        serviceWorker: {
-          serviceWorkerVersion: null,
-        },
-        onEntrypointLoaded: function(engineInitializer) {
-          engineInitializer.initializeEngine().then(function(appRunner) {
-            appRunner.runApp();
-          });
-        }
-      });
-    });
-  </script>
-  <script src="flutter.js" defer></script>
+    <script>
+        // This script initializes the Dart application
+        window.addEventListener('load', function() {
+            // Start the Dart application
+            if (typeof dart !== 'undefined') {
+                dart.run();
+            }
+        });
+    </script>
 </body>
 </html>

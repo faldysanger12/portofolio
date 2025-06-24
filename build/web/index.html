@@ -1,77 +1,85 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-  <base href="/">
-  <meta charset="UTF-8">
-  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="Faldy Sanger - Flutter Developer & Automotive Enthusiast Portfolio">
-  <meta name="keywords" content="Faldy Sanger, Flutter Developer, Portfolio, Mini Games, Automotive">
-  <meta name="author" content="Faldy Sanger">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  
-  <!-- Meta tags for mobile -->
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="Faldy Portfolio">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
-  
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
-  
-  <title>Faldy Sanger - Portfolio</title>
-  <link rel="manifest" href="manifest.json">
-  
-  <style>
-    body {
-      margin: 0;
-      background: linear-gradient(135deg, #000000, #111111);
-      font-family: 'Orbitron', monospace;
-      color: #00FF00;
-    }
-    
-    .loading {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      flex-direction: column;
-    }
-    
-    .loader {
-      border: 4px solid rgba(0, 255, 0, 0.3);
-      border-radius: 50%;
-      border-top: 4px solid #00FF00;
-      width: 50px;
-      height: 50px;
-      animation: spin 1s linear infinite;
-      margin-bottom: 20px;
-    }
-    
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-  </style>
-  
-  <script>
-    // The value below is injected by flutter build, do not touch.
-    const serviceWorkerVersion = "2796182515";
-  </script>
-  <script src="flutter_bootstrap.js" async></script>
+    <base href="/">
+    <meta charset="UTF-8">
+    <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+    <meta name="description" content="Faldy Sanger - Flutter Developer & Automotive Enthusiast Portfolio">
+    <meta name="keywords" content="Faldy Sanger, Flutter Developer, Portfolio, Mini Games, Automotive">
+    <meta name="author" content="Faldy Sanger">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Meta tags for mobile -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-title" content="Faldy Portfolio">
+    <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="favicon.png" />
+
+    <title>Faldy Sanger - Portfolio</title>
+    <link rel="manifest" href="manifest.json">
+
+    <style>
+        body {
+            margin: 0;
+            background: linear-gradient(135deg, #000000, #111111);
+            font-family: 'Orbitron', monospace;
+            color: #00FF00;
+        }
+
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            flex-direction: column;
+        }
+
+        .loader {
+            border: 4px solid rgba(0, 255, 0, 0.3);
+            border-radius: 50%;
+            border-top: 4px solid #00FF00;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+
+    <script>
+        // The value below is injected by flutter build, do not touch.
+        const serviceWorkerVersion = "1259594604";
+    </script>
+    <script src="flutter_bootstrap.js" async></script>
 </head>
+
 <body>
-  <div id="loading" class="loading">
-    <div class="loader"></div>
-    <p>Loading Faldy's Portfolio...</p>
-  </div>
-  
-  <script>
-    window.addEventListener('flutter-first-frame', function () {
-      var loading = document.getElementById('loading');
-      if (loading) {
-        loading.remove();
-      }
-    });
-  </script>
+    <div id="loading" class="loading">
+        <div class="loader"></div>
+        <p>Loading Faldy's Portfolio...</p>
+    </div>
+
+    <script>
+        window.addEventListener('flutter-first-frame', function () {
+            var loading = document.getElementById('loading');
+            if (loading) {
+                loading.remove();
+            }
+        });
+    </script>
 </body>
+
 </html>

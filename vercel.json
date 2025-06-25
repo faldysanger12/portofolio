@@ -4,22 +4,10 @@
     "buildCommand": "flutter/bin/flutter build web --release",
     "outputDirectory": "build/web",
     "installCommand": "if cd flutter; then git pull && cd .. ; else git clone https://github.com/flutter/flutter.git; fi && ls && flutter/bin/flutter doctor && flutter/bin/flutter clean && flutter/bin/flutter config --enable-web && flutter/bin/flutter pub get",
-    "routes": [
+    "rewrites": [
         {
-            "src": "/canvaskit/(.*)",
-            "dest": "/canvaskit/$1"
-        },
-        {
-            "src": "/assets/(.*)",
-            "dest": "/assets/$1"
-        },
-        {
-            "src": "/(.*\\.(js|css|woff2?|ttf|eot|ico|png|svg|wasm))",
-            "dest": "/$1"
-        },
-        {
-            "src": "/(.*)",
-            "dest": "/index.html"
+            "source": "/(.*)",
+            "destination": "/index.html"
         }
     ],
     "headers": [
